@@ -144,6 +144,66 @@ export function pluralPlayers(n: number): string {
   return `${n} игроков`;
 }
 
+/* ───────────────────────────────────────────────────────────────────────────
+   Файл календаря (.ics) для подтверждённой брони.
+
+   Зачем: после брони человеку нужно не потерять дату. Кнопка «добавить
+   в календарь» убирает риск забыть (а забытая бронь — это потерянный слот
+   и потерянные деньги площадки). Файл собирается на клиенте, сервер не нужен.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/** Экранирование значений по RFC 5545 (запятые и точки с запятой ломают .ics) */
+function icsEscape(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
+}
+
+/** Локальное время в формате, который понимает календарь */
+function icsLocal(date: Date): string {
+  const pad = (value: number) => `${value}`.padStart(2, "0");
+  return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}T${pad(date.getHours())}${pad(date.getMinutes())}00`;
+}
+
+export function buildCalendarHref(options: {
+  id: string;
+  title: string;
+  dateISO: string;
+  time: string;
+  durationMinutes: number;
+  location: string;
+  description: string;
+}): string {
+  const [hours, minutes] = options.time.split(":").map(Number);
+  const start = fromISODate(options.dateISO);
+  start.setHours(hours ?? 0, minutes ?? 0, 0, 0);
+  const end = new Date(start.getTime() + options.durationMinutes * 60_000);
+  const stamp = `${new Date().toISOString().replace(/[-:]/g, "").split(".")[0]}Z`;
+
+  const lines = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//Quest Horror Clinic//Booking//RU",
+    "CALSCALE:GREGORIAN",
+    "BEGIN:VEVENT",
+    `UID:${options.id}@quest-horror-clinic`,
+    `DTSTAMP:${stamp}`,
+    // Площадка работает по времени Алматы (UTC+5)
+    `DTSTART;TZID=Asia/Almaty:${icsLocal(start)}`,
+    `DTEND;TZID=Asia/Almaty:${icsLocal(end)}`,
+    `SUMMARY:${icsEscape(options.title)}`,
+    `LOCATION:${icsEscape(options.location)}`,
+    `DESCRIPTION:${icsEscape(options.description)}`,
+    "BEGIN:VALARM",
+    "TRIGGER:-PT2H",
+    "ACTION:DISPLAY",
+    "DESCRIPTION:Выезжайте на квест",
+    "END:VALARM",
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ];
+
+  return `data:text/calendar;charset=utf-8,${encodeURIComponent(lines.join("\r\n"))}`;
+}
+
 /** Плюрализация отзывов */
 export function pluralReviews(n: number): string {
   const mod10 = n % 10;

@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { Check, MessageCircle, Phone } from "lucide-react";
+import { CalendarPlus, Check, MessageCircle, Phone } from "lucide-react";
 import { BUSINESS, getFearMode, getLocation, getQuest } from "@/lib/content";
 import type { BookingRecord } from "@/lib/types";
-import { formatHumanDate, formatKzt, pluralPlayers } from "@/lib/utils";
+import { buildCalendarHref, formatHumanDate, formatKzt, pluralPlayers } from "@/lib/utils";
+import { ShareButton } from "@/components/share-button";
 
 /**
  * Экран успеха. Свет становится спокойнее: после брони напряжение не нужно,
@@ -72,6 +73,46 @@ export function BookingSuccess({ booking }: { booking: BookingRecord }) {
             {booking.extraNames.join(", ")}
           </p>
         ) : null}
+
+        {/* Практика вперёд: как найти вход и как не забыть дату.
+            Это снимает две самые частые причины неявки и звонков администратору. */}
+        {location ? (
+          <div className="mt-6 border border-bone/12 bg-ink/50 p-4">
+            <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-crimson">
+              Как найти вход
+            </p>
+            <p className="mt-2 text-sm leading-relaxed text-bone-dim">{location.entrance}</p>
+            <p className="mt-2 text-xs leading-relaxed text-ash-text">
+              Парковка: {location.parking}
+            </p>
+          </div>
+        ) : null}
+
+        <div className="mt-5 flex flex-wrap gap-2">
+          <a
+            href={buildCalendarHref({
+              id: booking.id,
+              title: `Хоррор-квест «${quest?.title ?? ""}»`,
+              dateISO: booking.dateISO,
+              time: booking.time,
+              durationMinutes: quest?.spec.duration ?? 60,
+              location: location ? `${location.city}, ${location.address}` : BUSINESS.city,
+              description: `Бронь ${booking.id}. Приходите за 15 минут до старта. Стоп-слово работает всегда. Игра — ${quest?.spec.duration ?? 60} минут.`,
+            })}
+            download={`quest-${booking.id}.ics`}
+            data-cursor="[ В КАЛЕНДАРЬ ]"
+            className="btn-ghost inline-flex min-h-[44px] items-center gap-2 px-4 py-2.5 font-mono text-[10px] uppercase tracking-[0.16em]"
+          >
+            <CalendarPlus className="h-3.5 w-3.5" aria-hidden="true" />
+            Добавить в календарь
+          </a>
+
+          <ShareButton
+            title={`Мы идём на «${quest?.title}» — ${formatHumanDate(booking.dateISO)}, ${booking.time}`}
+            text={`Бронь ${booking.id}. Адрес: ${location?.address ?? BUSINESS.city}.`}
+            label="Поделиться с командой"
+          />
+        </div>
 
         <div className="mt-7 space-y-3">
           <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-crimson">Что дальше</p>

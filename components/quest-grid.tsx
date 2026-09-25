@@ -34,7 +34,12 @@ const FEAR_RANGES: Record<Exclude<FearKey, "all">, [number, number]> = {
   hard: [9, 10],
 };
 
-export function QuestGrid() {
+export function QuestGrid({
+  teasers,
+}: {
+  /** Ближайшее свободное время по каждому квесту — считается на сервере */
+  teasers?: Record<string, { dateISO: string; time: string; seatsLeft: number }>;
+} = {}) {
   const [fear, setFear] = useState<FearKey>("all");
   const [group, setGroup] = useState<GroupKey>("all");
 
@@ -168,7 +173,7 @@ export function QuestGrid() {
                 {/* Кадры каталога не помечаем priority: на телефоне они всё
                     равно ниже первого экрана, а конкуренция за канал замедлила
                     бы загрузку hero — главного элемента LCP */}
-                <QuestCard quest={quest} />
+                <QuestCard quest={quest} teaser={teasers?.[quest.slug]} />
               </motion.div>
             ))}
           </AnimatePresence>

@@ -4,7 +4,13 @@ import { ArrowUpRight, Clock, MapPin, Users } from "lucide-react";
 import { getLocation } from "@/lib/content";
 import { IMAGE_PLACEHOLDERS } from "@/lib/image-placeholders";
 import type { Quest } from "@/lib/types";
-import { formatKzt } from "@/lib/utils";
+import {
+  GAME_PRICE_TEAM,
+  MIN_GAME_PRICE,
+  PER_PERSON_FROM,
+  PER_PERSON_PRICE,
+} from "@/lib/pricing";
+import { formatHumanDate, formatKzt, pluralSlots } from "@/lib/utils";
 import { FearMeter } from "@/components/fear-meter";
 
 /**
@@ -12,7 +18,16 @@ import { FearMeter } from "@/components/fear-meter";
  * Ссылка растянута на всю карточку (stretched link), поэтому вложенных
  * ссылок нет — и «Забронировать» остаётся отдельной кликабельной целью.
  */
-export function QuestCard({ quest, priority = false }: { quest: Quest; priority?: boolean }) {
+export function QuestCard({
+  quest,
+  priority = false,
+  teaser,
+}: {
+  quest: Quest;
+  priority?: boolean;
+  /** Ближайшее реальное свободное время — честная срочность у точки решения */
+  teaser?: { dateISO: string; time: string; seatsLeft: number };
+}) {
   const location = getLocation(quest.locationId);
   const placeholder = IMAGE_PLACEHOLDERS[quest.image.replace("/images/", "").replace(".jpg", "")];
 
@@ -89,11 +104,28 @@ export function QuestCard({ quest, priority = false }: { quest: Quest; priority?
           <FearMeter kind="difficulty" value={quest.difficulty} />
         </div>
 
+        {/* Ближайшее реальное время — самый честный аргумент «почему сейчас».
+            Данные приходят с сервера из подтверждённых броней. */}
+        {teaser ? (
+          <p className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 border border-crimson/30 bg-blood-deep/20 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-bone-dim">
+            <span className="text-crimson">ближайшее</span>
+            {formatHumanDate(teaser.dateISO)}, {teaser.time}
+            <span className="text-bone">· {pluralSlots(teaser.seatsLeft)}</span>
+          </p>
+        ) : null}
+
         <div className="mt-5 flex items-end justify-between gap-3 pt-1">
+          {/* Оба реальных числа сразу: цена за игру целиком и тариф за человека.
+              Раньше было только «от 3 500 ₸», и человек, придя в форму с командой
+              из трёх человек, видел 15 000 ₸ — это читалось как обман. */}
           <div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-ash-text">от</p>
-            <p className="font-display text-xl text-bone">{formatKzt(quest.priceFrom)}</p>
-            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-ash-text">с человека</p>
+            <p className="font-display text-xl leading-none text-bone">{formatKzt(MIN_GAME_PRICE)}</p>
+            <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.16em] text-ash-text">
+              за игру · {GAME_PRICE_TEAM}
+            </p>
+            <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.16em] text-crimson">
+              от {formatKzt(PER_PERSON_PRICE)} с человека от {PER_PERSON_FROM} чел.
+            </p>
           </div>
           <Link
             href={`/booking?quest=${quest.slug}`}

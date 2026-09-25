@@ -11,12 +11,14 @@ import {
   Minus,
   Phone,
   Plus,
+  ShieldCheck,
 } from "lucide-react";
 import { BUSINESS, FEAR_MODES, QUESTS, getFearMode, getQuest } from "@/lib/content";
 import type { MonthDaySummary } from "@/lib/availability";
 import { MIN_GAME_PRICE, PER_PERSON_FROM, PER_PERSON_PRICE, computePrice } from "@/lib/pricing";
 import type { BookingRecord, BookingSelection, DayAvailability, FearModeId } from "@/lib/types";
 import { formatHumanDate, formatKzt, fromISODate, todayISO } from "@/lib/utils";
+import { FEATURED_REVIEW } from "@/lib/reviews";
 import { PhoneInput } from "@/components/booking/phone-input";
 import { Calendar } from "@/components/booking/calendar";
 import { TimeSlots } from "@/components/booking/time-slots";
@@ -1060,6 +1062,28 @@ export function BookingFlow({
                   ) : null}
                 </span>
               </label>
+
+              {/* Реальное социальное доказательство и правила отмены прямо
+                  перед кнопкой: именно здесь возникают последние сомнения
+                  «а если не понравится / если планы изменятся» */}
+              <div className="mt-7 border border-bone/12 bg-charcoal/50 p-4">
+                <blockquote className="text-sm leading-relaxed text-bone-dim">
+                  «{FEATURED_REVIEW.text}»
+                </blockquote>
+                <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.16em] text-ash-text">
+                  {FEATURED_REVIEW.author} · {FEATURED_REVIEW.quest} · отзыв с сайта площадки
+                </p>
+                <ul className="mt-4 space-y-1.5 border-t border-bone/10 pt-3">
+                  <li className="flex items-center gap-2 text-xs text-bone-dim">
+                    <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-crimson" aria-hidden="true" />
+                    Отмена и перенос — за 24 часа, предоплата переносится
+                  </li>
+                  <li className="flex items-center gap-2 text-xs text-bone-dim">
+                    <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-crimson" aria-hidden="true" />
+                    Оплата не списывается на сайте: сначала подтверждение администратора
+                  </li>
+                </ul>
+              </div>
 
               {/* Мобильная сводка: цена всегда под рукой */}
               <div className="mt-7 lg:hidden">

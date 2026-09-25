@@ -56,9 +56,13 @@ export function MobileBookingBar() {
               <p className="hidden font-mono text-[10px] uppercase tracking-[0.22em] text-ash-text min-[380px]:block">
                 Бронь онлайн
               </p>
+              {/* Цена за игру, а не «от 3 500 ₸»: именно её человек увидит
+                  в форме, поэтому расхождения быть не должно */}
               <p className="truncate font-display text-[12px] uppercase leading-tight tracking-[0.02em] text-bone min-[380px]:text-[13px]">
-                <span className="min-[380px]:hidden">от 3 500 ₸</span>
-                <span className="hidden min-[380px]:inline">от 3 500 ₸ · есть слоты</span>
+                <span className="min-[380px]:hidden">15 000 ₸ за игру</span>
+                <span className="hidden min-[380px]:inline">
+                  15 000 ₸ за игру · от 3 500 ₸/чел.
+                </span>
               </p>
             </div>
 

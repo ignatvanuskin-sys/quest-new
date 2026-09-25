@@ -64,7 +64,7 @@ Check "прошедшее время помечено как past" (@($day.avail
 $targetDate = $null
 $slotTime = $null
 $testPlayers = 6
-for ($offset = 0; $offset -lt 14 -and -not $targetDate; $offset++) {
+for ($offset = 0; $offset -lt 28 -and -not $targetDate; $offset++) {
   $probe = (Get-Date).AddDays($offset).ToString("yyyy-MM-dd")
   $response = Invoke-RestMethod "$base/api/availability?quest=ritual&date=$probe"
   # Слот должен быть не только свободным, но и вмещать всю тестовую команду:
@@ -77,7 +77,7 @@ for ($offset = 0; $offset -lt 14 -and -not $targetDate; $offset++) {
     $slotTime = $free[0].time
   }
 }
-Check "есть день со свободным слотом на 6 человек" ($null -ne $targetDate) "за 14 дней не нашлось слота на 6 мест"
+Check "есть день со свободным слотом на 6 человек" ($null -ne $targetDate) "за 28 дней не нашлось слота на 6 мест"
 
 $monthData = Invoke-RestMethod "$base/api/availability?quest=ritual&month=$month"
 $days = ($monthData.summary | Get-Member -MemberType NoteProperty).Count
@@ -156,7 +156,7 @@ try {
 
 # 2. Переполнение слота: занимаем слот целиком, затем пробуем ещё раз
 $fillDate = $null; $fillTime = $null; $fillSeats = 0
-for ($offset = 0; $offset -lt 7 -and -not $fillDate; $offset++) {
+for ($offset = 0; $offset -lt 28 -and -not $fillDate; $offset++) {
   $probe = (Get-Date).AddDays($offset).ToString("yyyy-MM-dd")
   $resp = Invoke-RestMethod "$base/api/availability?quest=ritual&date=$probe"
   # Вместимость должна быть не меньше минимальной команды квеста (2 человека):

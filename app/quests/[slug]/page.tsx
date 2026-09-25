@@ -24,6 +24,8 @@ import { QuestStickyCta } from "@/components/quest-sticky-cta";
 import { QuestCard } from "@/components/quest-card";
 import { QuestCompanions } from "@/components/quest-companions";
 import { BackdropBand } from "@/components/backdrop";
+import { ShareButton } from "@/components/share-button";
+import { GAME_PRICE_TEAM, MIN_GAME_PRICE, PER_PERSON_FROM, PER_PERSON_PRICE } from "@/lib/pricing";
 import { EyesWatch } from "@/components/scenery";
 import { formatKzt, pluralPlayers } from "@/lib/utils";
 import { breadcrumbJsonLd, questJsonLd } from "@/lib/seo";
@@ -161,8 +163,11 @@ export default async function QuestPage({ params }: { params: Promise<{ slug: st
             <div>
               <dt className="font-mono text-[10px] uppercase tracking-[0.22em] text-ash-text">Цена</dt>
               <dd className="mt-1 font-display text-xl text-bone">
-                от {formatKzt(quest.priceFrom)}
-                <span className="ml-1 font-mono text-[10px] text-ash-text">/чел.</span>
+                {formatKzt(MIN_GAME_PRICE)}
+                <span className="ml-1 font-mono text-[10px] text-ash-text">за игру</span>
+                <span className="mt-0.5 block font-mono text-[10px] uppercase tracking-[0.13em] text-crimson">
+                  от {formatKzt(PER_PERSON_PRICE)} с человека от {PER_PERSON_FROM} чел.
+                </span>
               </dd>
             </div>
           </dl>
@@ -184,6 +189,12 @@ export default async function QuestPage({ params }: { params: Promise<{ slug: st
               <MessageCircle className="h-4 w-4" aria-hidden="true" />
               Спросить в WhatsApp
             </a>
+            {/* Решение принимает компания в чате — даём отправить ссылку
+                в один тап, не теряя человека с сайта */}
+            <ShareButton
+              title={`Хоррор-квест «${quest.title}» — Алматы`}
+              text={`${quest.tagline} Тариф: ${formatKzt(MIN_GAME_PRICE)} за игру (${GAME_PRICE_TEAM}).`}
+            />
           </div>
         </div>
       </section>

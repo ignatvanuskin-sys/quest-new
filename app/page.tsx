@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Gift } from "lucide-react";
 import { Hero, type HeroSlot } from "@/components/hero";
 import { FactRibbon } from "@/components/fact-ribbon";
 import { QuestGrid } from "@/components/quest-grid";
@@ -15,7 +16,9 @@ import { Faq } from "@/components/faq";
 import { LocationSection } from "@/components/location";
 import { FinalCta } from "@/components/final-cta";
 import { BackdropBand } from "@/components/backdrop";
-import { QUESTS } from "@/lib/content";
+import { TrustBar } from "@/components/trust-bar";
+import { HowItWorks } from "@/components/how-it-works";
+import { BIRTHDAY_PROMO, QUESTS } from "@/lib/content";
 import { bookedSeatsByDate } from "@/lib/bookings";
 import { nextAvailableSlots } from "@/lib/availability";
 import { faqJsonLd } from "@/lib/seo";
@@ -53,6 +56,14 @@ async function buildLiveSlots(): Promise<HeroSlot[]> {
 export default async function HomePage() {
   const liveSlots = await buildLiveSlots();
   const rest = liveSlots.slice(1, 4);
+  // Ближайшее время по каждому квесту — показываем прямо на карточке каталога,
+  // чтобы срочность была в точке выбора, а не только в hero
+  const teasers = Object.fromEntries(
+    liveSlots.map((slot) => [
+      slot.questSlug,
+      { dateISO: slot.dateISO, time: slot.time, seatsLeft: slot.seatsLeft },
+    ]),
+  );
 
   return (
     <>
@@ -75,6 +86,12 @@ export default async function HomePage() {
       />
 
       <Hero liveSlots={liveSlots} />
+
+      {/* Доверие сразу после первого экрана: реальное место, оценка игроков,
+          правило отмены, стоп-слово. Раньше эти ответы лежали в разных
+          секциях далеко внизу — теперь встречают человека первыми */}
+      <TrustBar />
+
       <FactRibbon />
 
       {rest.length > 0 ? (
@@ -106,7 +123,29 @@ export default async function HomePage() {
         </section>
       ) : null}
 
-      <QuestGrid />
+      {/* Реальная акция площадки. Она же — честный рычаг среднего чека:
+          команда от 6 человек платит по 3 500 ₸ с человека и получает
+          бесплатную игру имениннику, то есть выгоднее для обеих сторон */}
+      <section aria-label="Акция для именинника" className="border-b border-bone/8 bg-blood-deep/15">
+        <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-x-6 gap-y-3 px-4 py-4 sm:px-6 lg:px-10">
+          <Gift className="h-5 w-5 shrink-0 text-crimson" aria-hidden="true" />
+          <p className="min-w-0 flex-1 text-sm leading-relaxed text-bone-dim">
+            <span className="font-display uppercase tracking-[0.06em] text-bone">
+              {BIRTHDAY_PROMO.title}
+            </span>{" "}
+            — {BIRTHDAY_PROMO.detail}
+          </p>
+          <Link
+            href="/booking"
+            data-cursor="[ СОБРАТЬ КОМАНДУ ]"
+            className="btn-ghost inline-flex min-h-[44px] items-center px-5 py-2.5 font-display text-xs uppercase tracking-[0.14em]"
+          >
+            Собрать команду
+          </Link>
+        </div>
+      </section>
+
+      <QuestGrid teasers={teasers} />
 
       {/* Атмосферная пауза между каталогом и персонажами: человек успевает
           «увидеть» коридор до того, как ему расскажут про актёров */}
@@ -138,6 +177,11 @@ export default async function HomePage() {
       <Gallery />
       <SocialProof />
       <Reviews />
+
+      {/* Порядок перед решением: сначала доверие (отзывы), потом снятие
+          неизвестности (как проходит игра), потом правила */}
+      <HowItWorks />
+
       <BeforeYouEnter />
       <Faq />
       <LocationSection />

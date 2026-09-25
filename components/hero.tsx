@@ -7,6 +7,7 @@ import { ArrowDown, Flame, Star, Ticket } from "lucide-react";
 import { BUSINESS } from "@/lib/content";
 import { FogLayer, EyesWatch, StormFlash } from "@/components/scenery";
 import { useDesktop } from "@/components/use-media";
+import { priceLine } from "@/lib/pricing";
 import { formatHumanDate, pluralSlots } from "@/lib/utils";
 
 export interface HeroSlot {
@@ -107,8 +108,22 @@ export function Hero({ liveSlots }: { liveSlots: HeroSlot[] }) {
             transition={{ delay: 0.5, duration: 0.8 }}
             className="mt-6 max-w-xl text-base leading-relaxed text-bone-dim sm:text-lg"
           >
-            Ты слышал, что здесь происходит. Теперь попробуй выйти. Шесть хоррор-перформансов на площади
-            250–300 м², живые актёры и уровень страха, который выбираешь ты сам.
+            Ты слышал, что здесь происходит. Теперь попробуй выйти: шесть хоррор-перформансов в реальном
+            бомбоубежище, живые актёры и уровень страха, который выбираешь ты сам.
+          </motion.p>
+
+          {/* Цена в первом экране: без неё человек уходит «сравнить» и не
+              возвращается. Показываем оба реальных числа, чтобы в форме
+              не было сюрприза */}
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.58, duration: 0.7 }}
+            className="mt-4 font-mono text-[11px] uppercase leading-relaxed tracking-[0.16em] text-bone-dim"
+          >
+            <span className="text-bone">{priceLine()}</span>
+            <span className="mx-2 text-ash-text/60">·</span>
+            от 3 500 ₸ с человека
           </motion.p>
 
           <motion.div
