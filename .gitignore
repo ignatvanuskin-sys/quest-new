@@ -1,0 +1,23 @@
+node_modules/
+.next/
+out/
+build/
+dist/
+# Исходные PNG, сгенерированные для проекта: в репозиторий идут только
+# оптимизированные файлы из public/images (см. scripts/optimize-images.py)
+media-output/
+.env
+.env.local
+.env*.local
+.data/
+*.tsbuildinfo
+next-env.d.ts
+.DS_Store
+Thumbs.db
+.vercel
+qa/
+qa2/
+qa3/
+qa4/
+.server.log
+.server.err.log

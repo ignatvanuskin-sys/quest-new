@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 260" width="300" height="260" role="img" aria-label="Quest Horror Clinic">
+  <title>Quest Horror Clinic — вертикальный логотип</title>
+  <defs>
+    <linearGradient id="v-slit" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.28" stop-color="#ffe4e0" stop-opacity="0.72"/>
+      <stop offset="1" stop-color="#e0626b" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="v-glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#e0626b" stop-opacity="0.62"/>
+      <stop offset="1" stop-color="#8b1419" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="v-frame"><path d="M111 28h78v104h-78z"/></clipPath>
+  </defs>
+
+  <rect x="99" y="16" width="102" height="128" rx="11" fill="#07070a"/>
+  <rect x="99" y="16" width="102" height="128" rx="11" fill="none" stroke="#e6e1d8" stroke-opacity="0.14"/>
+  <g clip-path="url(#v-frame)">
+    <rect x="111" y="28" width="78" height="104" fill="#000"/>
+    <ellipse cx="122" cy="76" rx="46" ry="54" fill="url(#v-glow)"/>
+    <path d="M150 31.5 188.5 39v82.5L150 121.5z" fill="#101014"/>
+    <path d="M150 31.5 188.5 39v82.5L150 121.5z" fill="none" stroke="#3a3a44" stroke-opacity="0.55" stroke-width="0.9"/>
+    <circle cx="180" cy="79" r="2.4" fill="#c3beb3" fill-opacity="0.8"/>
+    <rect x="115" y="28" width="5" height="104" fill="url(#v-slit)"/>
+    <rect x="115" y="28" width="1.6" height="104" fill="#ffffff" fill-opacity="0.9"/>
+  </g>
+  <path d="M111 28h78" stroke="#e6e1d8" stroke-opacity="0.22" stroke-width="1.2"/>
+  <path d="M117 132v8c0 1.2 2 1.2 2 0v-8z" fill="#e0626b" fill-opacity="0.9"/>
+
+  <text x="150" y="186" text-anchor="middle" font-family="Oswald, Arial Narrow, Impact, sans-serif" font-size="27" letter-spacing="3" fill="#e6e1d8">
+    QUEST <tspan fill="#e0626b">HORROR</tspan> CLINIC
+  </text>
+  <text x="150" y="212" text-anchor="middle" font-family="'JetBrains Mono', Consolas, monospace" font-size="10.5" letter-spacing="3.4" fill="#948f86">
+    АЛМАТЫ · ХОРРОР-ПЕРФОРМАНСЫ
+  </text>
+  <text x="150" y="232" text-anchor="middle" font-family="'JetBrains Mono', Consolas, monospace" font-size="10.5" letter-spacing="3.4" fill="#e0626b">
+    С 11 ЛЕТ · 2–15 ЧЕЛОВЕК
+  </text>
+</svg>
