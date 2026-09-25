@@ -2,12 +2,24 @@ import { NextResponse } from "next/server";
 import { createBooking, getBookingStorage } from "@/lib/bookings";
 import { isAdmin } from "@/lib/auth";
 import { notifyNewBooking } from "@/lib/notify";
+import { clientKey, rateLimit } from "@/lib/rate-limit";
+import { tooManyRequests } from "@/lib/http";
 import type { BookingStatus, FearModeId } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
 /** POST /api/bookings — создание брони с публичной формы */
 export async function POST(request: Request) {
+  // Публичная форма: без ограничения один скрипт забивает базу фейковыми
+  // заявками за минуту. Лимит щедрый для человека и жёсткий для бота.
+  const limit = rateLimit(clientKey(request, "booking"), 12, 15 * 60 * 1000);
+  if (!limit.ok) {
+    return tooManyRequests(
+      limit.retryAfter,
+      "Слишком много заявок с одного адреса. Подождите пару минут или напишите нам в WhatsApp — оформим бронь вручную.",
+    );
+  }
+
   let payload: Record<string, unknown>;
 
   try {

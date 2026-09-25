@@ -82,15 +82,6 @@ export function EyesWatch({
   );
 }
 
-/** Тонкая линия, медленно ползущая вниз по секции — ощущение «спуска» */
-export function CreepLine() {
-  return (
-    <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
-      <div className="creep-line" />
-    </div>
-  );
-}
-
 /** Мигающая надпись-шёпот: появляется на мгновение и гаснет */
 export function Whisper({ children, className }: { children: string; className?: string }) {
   return (

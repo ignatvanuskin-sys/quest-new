@@ -714,22 +714,7 @@
   96% { opacity: 0; }
 }
 
-/* ─── Ползущая царапина по разделу (медленный прогресс «глубже») ───────── */
 
-.creep-line {
-  position: absolute;
-  left: 0;
-  top: 0;
-  height: 1px;
-  width: 100%;
-  background: linear-gradient(90deg, transparent, rgba(176, 18, 27, 0.6), transparent);
-  animation: creep-line 12s ease-in-out infinite;
-}
-@keyframes creep-line {
-  0% { transform: translateY(0); opacity: 0; }
-  20% { opacity: 0.8; }
-  100% { transform: translateY(100vh); opacity: 0; }
-}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    МОБИЛЬНЫЙ РЕЖИМ

@@ -1,12 +1,22 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ArrowLeft, ArrowRight, Loader2, Lock, MessageCircle, Phone } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  ArrowRight,
+  Loader2,
+  Lock,
+  MessageCircle,
+  Minus,
+  Phone,
+  Plus,
+} from "lucide-react";
 import { BUSINESS, FEAR_MODES, QUESTS, getFearMode, getQuest } from "@/lib/content";
 import type { MonthDaySummary } from "@/lib/availability";
-import { computePrice } from "@/lib/pricing";
-import type { BookingRecord, DayAvailability, FearModeId } from "@/lib/types";
-import { formatHumanDate, fromISODate, todayISO } from "@/lib/utils";
+import { MIN_GAME_PRICE, PER_PERSON_FROM, PER_PERSON_PRICE, computePrice } from "@/lib/pricing";
+import type { BookingRecord, BookingSelection, DayAvailability, FearModeId } from "@/lib/types";
+import { formatHumanDate, formatKzt, fromISODate, todayISO } from "@/lib/utils";
 import { PhoneInput } from "@/components/booking/phone-input";
 import { Calendar } from "@/components/booking/calendar";
 import { TimeSlots } from "@/components/booking/time-slots";
@@ -21,6 +31,9 @@ const STEPS: Array<{ id: Step; label: string; hint: string }> = [
   { id: 2, label: "Дата и время", hint: "свободные слоты" },
   { id: 3, label: "Контакт", hint: "куда написать" },
 ];
+
+/** Ключ черновика: он же версия — если структура изменится, старый не подхватится */
+const DRAFT_KEY = "hc:booking-draft:v1";
 
 const MESSENGERS = [
   { id: "whatsapp", label: "WhatsApp", note: "быстрее всего — и предоплата там же" },
@@ -143,6 +156,190 @@ export function BookingFlow({
     setExtraIds((current) => current.filter((id) => id !== "full-contact" || quest.fearModes.includes("hard")));
   }, [quest, fearMode]);
 
+  /* ── Черновик заявки и шаг в адресе ────────────────────────────────────
+     Черновик спасает от самой обидной потери: человек заполнил форму,
+     случайно обновил страницу или свернул браузер — и всё заново.
+     Шаг хранится в адресе, поэтому кнопки «назад/вперёд» браузера работают
+     как ожидается, а ссылку на конкретный шаг можно переслать. */
+  const [draftRestored, setDraftRestored] = useState(false);
+  /**
+   * После захода по ссылке на другой квест эффект сохранения срабатывает
+   * сразу после восстановления и затирает предыдущий черновик сброшенным
+   * состоянием — вернуть его было бы неоткуда. Поэтому первую запись
+   * в таком случае пропускаем: черновик обновится, когда человек сам
+   * что-то изменит.
+   */
+  /**
+   * Признак «человек что-то сделал в форме».
+   *
+   * Записываем черновик только после реального действия. Иначе эффект
+   * сохранения срабатывает сразу после монтирования — ещё со старым
+   * состоянием, — и затирает черновик другого сценария. Проверять порядок
+   * эффектов и «первый запуск» оказалось ненадёжно: флаг гасился раньше,
+   * чем состояние успевало примениться. Флаг по событию такой проблемы
+   * не имеет: без действия пользователя запись не происходит вообще.
+   */
+  const interactedRef = useRef(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const questFromUrl = params.get("quest") ? getQuest(params.get("quest") as string) : undefined;
+    const stepFromUrl = Number(params.get("step"));
+    const initialStep: Step =
+      stepFromUrl >= 1 && stepFromUrl <= 3 ? (stepFromUrl as Step) : 1;
+    let resolvedQuestSlug = questFromUrl?.slug ?? questSlug;
+
+    try {
+      const raw = window.localStorage.getItem(DRAFT_KEY);
+      if (raw) {
+        const draft = JSON.parse(raw) as Partial<BookingSelection> & { step?: number };
+        const draftQuest = draft.questSlug ? getQuest(draft.questSlug) : undefined;
+
+        /* Разделяем два похожих случая:
+           • человек открыл ссылку на ДРУГОЙ квест — тогда данные прежнего
+             сценария (игроки, опции, дата) не подходят и не подставляются;
+           • человек просто обновил страницу — в адресе тоже есть ?quest=,
+             потому что форма сама его туда пишет. Тут черновик обязан
+             восстановиться целиком, иначе обновление страницы теряет всё.
+
+           Отличаем их сравнением квестов, а не наличием параметра. */
+        const urlQuestSlug = questFromUrl?.slug;
+        const sameQuest = Boolean(urlQuestSlug && draftQuest && urlQuestSlug === draftQuest.slug);
+        const questChanged = Boolean(urlQuestSlug && draftQuest && !sameQuest);
+        const targetQuest = questFromUrl ?? draftQuest;
+
+        if (targetQuest) {
+          resolvedQuestSlug = targetQuest.slug;
+          setQuestSlug(targetQuest.slug);
+
+          if (questChanged) {
+            setPlayers(targetQuest.spec.playersMin);
+            setFearMode(
+              targetQuest.fearModes.includes("light") ? "light" : targetQuest.fearModes[0],
+            );
+            setExtraIds([]);
+            setIsBirthday(false);
+          } else {
+            if (typeof draft.players === "number") {
+              setPlayers(
+                Math.min(
+                  Math.max(draft.players, targetQuest.spec.playersMin),
+                  targetQuest.spec.playersMax,
+                ),
+              );
+            } else {
+              setPlayers(targetQuest.spec.playersMin);
+            }
+            if (draft.fearMode && targetQuest.fearModes.includes(draft.fearMode)) {
+              setFearMode(draft.fearMode);
+            }
+            if (Array.isArray(draft.extraIds)) setExtraIds(draft.extraIds);
+            if (typeof draft.isBirthday === "boolean") setIsBirthday(draft.isBirthday);
+          }
+        }
+
+        // Дата и время относятся к сценарию: при смене квеста их не переносим
+        if (!questChanged) {
+          if (draft.dateISO) setDateISO(draft.dateISO);
+          if (draft.time) setTime(draft.time);
+        }
+
+        // Контакты от сценария не зависят — их подставляем всегда,
+        // чтобы человеку не пришлось набирать номер заново
+        if (draft.name) setName(draft.name);
+        if (draft.phone) setPhone(draft.phone);
+        if (draft.messenger) setMessenger(draft.messenger);
+        if (draft.comment) setComment(draft.comment);
+
+        if (!questChanged && (draft.name || draft.phone || draft.dateISO)) setDraftRestored(true);
+      }
+    } catch {
+      /* приватный режим или испорченные данные — просто начинаем с чистого листа */
+    }
+
+    setStep(initialStep);
+
+    /* История для кнопки «назад».
+       Если человек открыл ссылку сразу на второй шаг, «назад» должна вести
+       на первый шаг формы, а не выбрасывать со страницы: сначала подменяем
+       текущую запись на шаг 1, затем кладём поверх неё исходный шаг. */
+    // Квест в адресе берём из уже разрешённого состояния (ссылка или черновик),
+    // иначе на первом рендере в URL попадал квест по умолчанию и адрес
+    // расходился с тем, что на экране
+    const query = (step: number) => {
+      const next = new URLSearchParams(window.location.search);
+      next.set("quest", resolvedQuestSlug);
+      next.set("step", String(step));
+      return `/booking?${next.toString()}`;
+    };
+
+    if (initialStep > 1) {
+      window.history.replaceState(null, "", query(1));
+      window.history.pushState(null, "", query(initialStep));
+    } else {
+      window.history.replaceState(null, "", query(1));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- начальное состояние читается один раз
+  }, []);
+
+  useEffect(() => {
+    if (!interactedRef.current) return;
+
+    const payload = {
+      questSlug,
+      players,
+      fearMode,
+      extraIds,
+      isBirthday,
+      dateISO,
+      time,
+      name,
+      phone,
+      messenger,
+      comment,
+      step,
+    };
+    try {
+      window.localStorage.setItem(DRAFT_KEY, JSON.stringify(payload));
+    } catch {
+      /* хранилище недоступно — форма всё равно работает */
+    }
+  }, [questSlug, players, fearMode, extraIds, isBirthday, dateISO, time, name, phone, messenger, comment, step]);
+
+  useEffect(() => {
+    const onPopState = () => {
+      const stepParam = Number(new URLSearchParams(window.location.search).get("step"));
+      // Без параметра Number(null) даёт 0 — раньше шаг просто не менялся,
+      // и адрес расходился с тем, что на экране. Теперь отсутствие шага
+      // трактуется как первый шаг.
+      setStep(stepParam >= 1 && stepParam <= 3 ? (stepParam as Step) : 1);
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  const resetDraft = () => {
+    try {
+      window.localStorage.removeItem(DRAFT_KEY);
+    } catch {
+      /* ничего страшного */
+    }
+    const quest = getQuest(questSlug);
+    setDraftRestored(false);
+    setStep(1);
+    setPlayers(quest ? quest.spec.playersMin : 2);
+    setFearMode(quest?.fearModes.includes("light") ? "light" : (quest?.fearModes[0] ?? "light"));
+    setDateISO(null);
+    setTime(null);
+    setExtraIds([]);
+    setIsBirthday(false);
+    setName("");
+    setPhone("");
+    setComment("");
+    setErrors({});
+    window.history.replaceState(null, "", `/booking?quest=${questSlug}&step=1`);
+  };
+
   const flashGlitch = useCallback(() => {
     setGlitch(true);
     window.setTimeout(() => setGlitch(false), 700);
@@ -151,6 +348,9 @@ export function BookingFlow({
   const goToStep = (next: Step) => {
     setStep(next);
     setFailure(null);
+    // pushState, а не replaceState: тогда кнопка «назад» возвращает на
+    // предыдущий шаг формы, а не выкидывает со страницы
+    window.history.pushState(null, "", `/booking?quest=${questSlug}&step=${next}`);
     if (next === 3 || next === 2) {
       window.requestAnimationFrame(() => {
         topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -255,6 +455,12 @@ export function BookingFlow({
       }
 
       setBooking(data.booking);
+      try {
+        window.localStorage.removeItem(DRAFT_KEY);
+      } catch {
+        /* не критично */
+      }
+      window.history.replaceState(null, "", `/booking?quest=${questSlug}&done=1`);
       window.requestAnimationFrame(() => topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
     } catch {
       setFailure(
@@ -271,9 +477,7 @@ export function BookingFlow({
     setDateISO(null);
     setTime(null);
     setAvailability(null);
-    if (typeof window !== "undefined") {
-      window.history.replaceState(null, "", `/booking?quest=${slug}`);
-    }
+    window.history.replaceState(null, "", `/booking?quest=${slug}&step=1`);
   };
 
   const jumpToDay = (offset: number) => {
@@ -304,7 +508,26 @@ export function BookingFlow({
   }
 
   return (
-    <div ref={topRef} className="mx-auto max-w-[1400px] scroll-mt-24 px-4 py-8 sm:px-6 sm:py-12 lg:px-10">
+    // Любое касание формы (клик, клавиша, изменение поля) включает сохранение
+    // черновика — до первого действия в localStorage ничего не пишется
+    <div
+      ref={topRef}
+      onPointerDownCapture={() => {
+        interactedRef.current = true;
+      }}
+      onKeyDownCapture={() => {
+        interactedRef.current = true;
+      }}
+      onChangeCapture={() => {
+        interactedRef.current = true;
+      }}
+      // click нужен отдельно: синтетический клик (скринридер, расширение,
+      // автозаполнение) не порождает pointerdown/keydown
+      onClickCapture={() => {
+        interactedRef.current = true;
+      }}
+      className="mx-auto max-w-[1400px] scroll-mt-24 px-4 py-8 sm:px-6 sm:py-12 lg:px-10"
+    >
       {/* Прогресс */}
       <ol className="flex flex-col gap-3 border-b border-bone/10 pb-6 sm:flex-row sm:items-center sm:gap-6">
         {STEPS.map((item) => {
@@ -343,6 +566,21 @@ export function BookingFlow({
 
       <div className="mt-8 grid gap-8 lg:grid-cols-[1.5fr_1fr] lg:items-start">
         <div>
+          {draftRestored ? (
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border border-bone/15 bg-charcoal/60 px-4 py-3">
+              <p className="text-sm text-bone-dim">
+                Черновик заявки восстановлен — можно продолжить с того же места.
+              </p>
+              <button
+                type="button"
+                onClick={resetDraft}
+                className="font-mono text-[10px] uppercase tracking-[0.18em] text-ash-text underline decoration-crimson/50 underline-offset-4 transition hover:text-bone"
+              >
+                начать заново
+              </button>
+            </div>
+          ) : null}
+
           {failure ? (
             <div
               role="alert"
@@ -403,6 +641,49 @@ export function BookingFlow({
                   );
                 })}
               </ul>
+
+              {/* Счётчик игроков живёт на первом шаге — там, где человек решает
+                  «что играем и сколько нас». Раньше он был только на втором,
+                  и подпись шага не совпадала с содержимым. */}
+              <div className="mt-8 flex flex-wrap items-center justify-between gap-4 border border-bone/12 bg-ash/40 p-4">
+                <div>
+                  <p className="font-display text-base uppercase tracking-[0.08em] text-bone">
+                    Сколько вас
+                  </p>
+                  <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.16em] text-ash-text">
+                    от {quest.spec.playersMin} до {quest.spec.playersMax} ·{" "}
+                    {players < PER_PERSON_FROM
+                      ? `${formatKzt(MIN_GAME_PRICE)} за игру`
+                      : `${players} × ${formatKzt(PER_PERSON_PRICE)}`}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPlayers(Math.max(quest.spec.playersMin, players - 1))}
+                    disabled={players <= quest.spec.playersMin}
+                    aria-label="Убрать одного игрока"
+                    className="flex h-11 w-11 items-center justify-center border border-bone/20 text-bone transition enabled:hover:border-crimson/60 disabled:opacity-30"
+                  >
+                    <Minus className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                  <span
+                    className="w-12 text-center font-display text-2xl tabular-nums text-bone"
+                    aria-live="polite"
+                  >
+                    {players}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setPlayers(Math.min(quest.spec.playersMax, players + 1))}
+                    disabled={players >= quest.spec.playersMax}
+                    aria-label="Добавить одного игрока"
+                    className="flex h-11 w-11 items-center justify-center border border-bone/20 text-bone transition enabled:hover:border-crimson/60 disabled:opacity-30"
+                  >
+                    <Plus className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                </div>
+              </div>
 
               {/* Выбор страха — четыре компактные кнопки вместо четырёх карточек:
                   в форме человеку важнее пройти дальше, чем читать описания.

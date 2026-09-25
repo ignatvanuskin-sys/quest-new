@@ -1,7 +1,9 @@
 import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
+import { buildDayAvailability } from "./availability";
 import { getFearMode, getQuest } from "./content";
 import { computePrice } from "./pricing";
+import { isSlotPast } from "./utils";
 import type { BookingRecord, BookingSelection, BookingStatus } from "./types";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -149,7 +151,31 @@ export interface CreateBookingResult {
   errors?: Record<string, string>;
 }
 
-export async function createBooking(input: CreateBookingInput): Promise<CreateBookingResult> {
+/**
+ * Очередь создания броней.
+ *
+ * Зачем: проверка «есть ли ещё места» и запись брони — две операции.
+ * Без сериализации два одновременных запроса прочитают одинаковое состояние
+ * и оба займут последнее место. Здесь все создания выполняются строго по
+ * очереди в рамках процесса, поэтому слот не продаётся дважды.
+ *
+ * При переходе на несколько инстансов или на реальную БД эту защиту нужно
+ * продублировать на уровне базы (уникальный индекс/транзакция) — счётчик
+ * в памяти одного процесса этого не заменит.
+ */
+let bookingQueue: Promise<unknown> = Promise.resolve();
+
+function withBookingLock<T>(task: () => Promise<T>): Promise<T> {
+  const run = bookingQueue.then(task, task);
+  bookingQueue = run.catch(() => undefined);
+  return run;
+}
+
+export function createBooking(input: CreateBookingInput): Promise<CreateBookingResult> {
+  return withBookingLock(() => createBookingUnsafe(input));
+}
+
+async function createBookingUnsafe(input: CreateBookingInput): Promise<CreateBookingResult> {
   const errors: Record<string, string> = {};
 
   const quest = getQuest(input.questSlug);
@@ -194,6 +220,31 @@ export async function createBooking(input: CreateBookingInput): Promise<CreateBo
   );
   if (duplicate) {
     return { ok: true, record: duplicate, duplicate };
+  }
+
+  // ── Слот: проверяется на сервере, а не только в интерфейсе ───────────────
+  // Браузеру доверять нельзя: заявку можно отправить напрямую в API,
+  // поэтому и прошедшее время, и занятость проверяются здесь.
+  if (isSlotPast(input.dateISO, input.time)) {
+    errors.time = "Это время уже прошло — выберите другое.";
+  } else {
+    const bookedSeats = await bookedSeatsByTime(input.questSlug, input.dateISO);
+    const availability = buildDayAvailability(input.questSlug, input.dateISO, {
+      bookedSeatsByTime: bookedSeats,
+    });
+    const slot = availability.slots.find((item) => item.time === input.time);
+
+    if (!slot) {
+      errors.time = "Такого времени нет в расписании — выберите из доступных.";
+    } else if (slot.status === "sold-out") {
+      errors.time = "Этот слот только что заняли. Выберите другое время — свободные места есть рядом.";
+    } else if (slot.seatsLeft < input.players) {
+      errors.time = `В этом слоте свободно ${slot.seatsLeft} из ${slot.capacity} мест, а в заявке ${input.players}. Уменьшите команду или выберите другое время.`;
+    }
+  }
+
+  if (Object.keys(errors).length > 0) {
+    return { ok: false, errors };
   }
 
   const price = computePrice({

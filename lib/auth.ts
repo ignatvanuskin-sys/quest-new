@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -17,16 +17,39 @@ import { cookies } from "next/headers";
 export const ADMIN_COOKIE = "hc_admin";
 const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
 
-function secret(): string {
-  return process.env.ADMIN_SESSION_SECRET ?? "quest-horror-clinic-dev-secret";
+/**
+ * В продакшене админка работает ТОЛЬКО с заданными переменными окружения.
+ *
+ * Раньше был молчаливый дефолт: если забыть задать ADMIN_PASSWORD, панель
+ * открывалась паролем «horror-clinic» — то есть любой, кто читал репозиторий,
+ * получал доступ к персональным данным клиентов. Теперь при отсутствии
+ * переменных вход отключён, а в лог пишется понятное объяснение.
+ */
+export function isAdminConfigured(): boolean {
+  if (process.env.NODE_ENV !== "production") return true;
+  return Boolean(process.env.ADMIN_PASSWORD && process.env.ADMIN_SESSION_SECRET);
 }
 
+function secret(): string {
+  const fromEnv = process.env.ADMIN_SESSION_SECRET;
+  if (fromEnv) return fromEnv;
+
+  // В продакшене без секрета подписывать токены нельзя — берём случайный
+  // для процесса: тогда подделать cookie нельзя даже зная код,
+  // а после перезапуска старые сессии просто становятся недействительными.
+  if (process.env.NODE_ENV === "production") return randomBytes(32).toString("hex");
+  return "quest-horror-clinic-dev-secret";
+}
+
+/** Подпись полезной нагрузки токена — HMAC-SHA256 на секрете процесса */
 function sign(payload: string): string {
   return createHmac("sha256", secret()).update(payload).digest("hex");
 }
 
 export function checkPassword(candidate: string): boolean {
-  const expected = process.env.ADMIN_PASSWORD ?? "horror-clinic";
+  const expected =
+    process.env.ADMIN_PASSWORD ?? (process.env.NODE_ENV === "production" ? "" : "horror-clinic");
+  if (!expected) return false;
   const a = Buffer.from(candidate.padEnd(64, "\u0000"));
   const b = Buffer.from(expected.padEnd(64, "\u0000"));
   if (a.length !== b.length) return false;

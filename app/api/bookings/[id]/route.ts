@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { isAdmin } from "@/lib/auth";
 import { getBookingStorage } from "@/lib/bookings";
+import { forbiddenOrigin, isSameOrigin } from "@/lib/http";
 import type { BookingStatus } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -9,6 +10,10 @@ const ALLOWED: BookingStatus[] = ["new", "confirmed", "completed", "cancelled"];
 
 /** PATCH /api/bookings/:id — смена статуса брони из админки */
 export async function PATCH(request: Request, ctx: { params: Promise<{ id: string }> }) {
+  // Изменяющая операция по cookie: сначала проверяем, что запрос пришёл
+  // с нашего же домена (вторая линия после sameSite=lax)
+  if (!isSameOrigin(request)) return forbiddenOrigin();
+
   if (!(await isAdmin())) {
     return NextResponse.json({ ok: false, message: "Требуется вход" }, { status: 401 });
   }
