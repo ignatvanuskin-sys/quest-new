@@ -19,6 +19,7 @@ const eslintConfig = [
       "qa2/**",
       "qa3/**",
       "qa4/**",
+      "qa5/**",
       "next-env.d.ts",
     ],
   },

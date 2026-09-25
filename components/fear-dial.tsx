@@ -9,6 +9,7 @@ import { Reveal } from "@/components/reveal";
 import { SectionHeading } from "@/components/ui";
 import { Whisper } from "@/components/scenery";
 import { SectionBackdrop } from "@/components/backdrop";
+import { AnimatedHeadline } from "@/components/animated-text";
 
 const ICONS = [Snowflake, HeartPulse, Skull, Zap];
 
@@ -47,9 +48,13 @@ export function FearDial() {
             align="center"
             eyebrow="Испытание страха"
             title={
-              <>
-                Насколько глубоко вы <span className="text-crimson">готовы зайти</span>
-              </>
+              <AnimatedHeadline
+                as="span"
+                text="Насколько глубоко вы готовы зайти"
+                stagger={0.022}
+                flickerCount={2}
+                className="block"
+              />
             }
             lead="Двигайте ползунок и читайте, что именно будет происходить. Уровень можно поменять в любой момент — и до игры, и внутри локации."
           />
@@ -122,12 +127,18 @@ export function FearDial() {
               className="mt-8 grid gap-6 border-t border-bone/10 pt-8 lg:grid-cols-[1fr_auto] lg:items-center"
             >
               <div>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                   <Icon className="h-6 w-6 text-crimson" aria-hidden="true" />
                   <h3 className="font-display text-2xl uppercase tracking-[0.04em] text-bone">{mode.name}</h3>
                   <span className="border border-crimson/40 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.2em] text-crimson">
                     {mode.contact}
                   </span>
+                  {/* Рекомендация снимает главный вопрос новичка «а что выбрать?» */}
+                  {mode.id === "light" ? (
+                    <span className="border border-bone/25 bg-ink/60 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.2em] text-bone-dim">
+                      рекомендуем в первый раз
+                    </span>
+                  ) : null}
                 </div>
 
                 <p className="mt-4 text-[15px] leading-relaxed text-bone-dim">{EXPERIENCE[level - 1]}</p>

@@ -19,5 +19,6 @@ qa/
 qa2/
 qa3/
 qa4/
+qa5/
 .server.log
 .server.err.log

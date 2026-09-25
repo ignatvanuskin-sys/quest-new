@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Hero, type HeroSlot } from "@/components/hero";
 import { FactRibbon } from "@/components/fact-ribbon";
 import { QuestGrid } from "@/components/quest-grid";
@@ -83,16 +84,21 @@ export default async function HomePage() {
               Занятость сейчас — по подтверждённым броням
             </p>
             <ul className="grid gap-3 sm:grid-cols-3 lg:flex-1 lg:justify-end">
+              {/* Слоты кликабельны: увидел свободное время — сразу в форму,
+                  без поиска квеста заново */}
               {rest.map((slot) => (
-                <li
-                  key={`${slot.questSlug}-${slot.dateISO}-${slot.time}`}
-                  className="flex items-center justify-between gap-4 border border-bone/10 bg-ink/50 px-4 py-3 lg:justify-start"
-                >
-                  <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-bone-dim">
-                    {formatHumanDate(slot.dateISO)}
-                  </span>
-                  <span className="font-display text-base text-bone">{slot.time}</span>
-                  <span className="font-mono text-[10px] text-crimson">{slot.seatsLeft} мест</span>
+                <li key={`${slot.questSlug}-${slot.dateISO}-${slot.time}`}>
+                  <Link
+                    href={`/booking?quest=${slot.questSlug}`}
+                    data-cursor="[ ЗАНЯТЬ ]"
+                    className="flex min-h-[52px] items-center justify-between gap-4 border border-bone/10 bg-ink/50 px-4 py-3 transition hover:border-crimson/50 lg:justify-start"
+                  >
+                    <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-bone-dim">
+                      {formatHumanDate(slot.dateISO)}
+                    </span>
+                    <span className="font-display text-base text-bone">{slot.time}</span>
+                    <span className="font-mono text-[10px] text-crimson">{slot.seatsLeft} мест</span>
+                  </Link>
                 </li>
               ))}
             </ul>

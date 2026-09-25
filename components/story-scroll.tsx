@@ -8,6 +8,7 @@ import { QUESTS } from "@/lib/content";
 import { Reveal } from "@/components/reveal";
 import { MonoLabel } from "@/components/ui";
 import { FogLayer, EyesWatch } from "@/components/scenery";
+import { AnimatedHeadline } from "@/components/animated-text";
 
 const story = QUESTS[0];
 
@@ -58,9 +59,13 @@ export function StoryScroll() {
             </Reveal>
 
             <Reveal delay={1}>
-              <h2 className="mt-5 font-display text-[clamp(1.9rem,6.6vw,4.2rem)] uppercase leading-[0.95] tracking-tight text-bone">
-                Это не комната с замками
-              </h2>
+              <AnimatedHeadline
+                as="h2"
+                text="Это не комната с замками"
+                stagger={0.028}
+                flickerCount={2}
+                className="mt-5 font-display text-[clamp(1.9rem,6.6vw,4.2rem)] uppercase leading-[0.95] tracking-tight text-bone"
+              />
             </Reveal>
 
             <div className="mt-8 space-y-5">

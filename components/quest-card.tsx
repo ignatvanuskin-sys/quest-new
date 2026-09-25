@@ -100,7 +100,9 @@ export function QuestCard({ quest, priority = false }: { quest: Quest; priority?
             data-cursor="[ ЗАБРОНИРОВАТЬ ]"
             className="btn-blood relative z-20 inline-flex min-h-[44px] items-center px-4 py-3 font-display text-xs uppercase tracking-[0.16em]"
           >
-            Забронировать
+            {/* «Выбрать время» вместо «Забронировать»: меньше обязательства
+                на шаге знакомства с квестом, а действие — то же */}
+            Выбрать время
           </Link>
         </div>
       </div>

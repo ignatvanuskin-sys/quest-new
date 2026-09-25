@@ -6,6 +6,7 @@ import { IMAGE_PLACEHOLDERS } from "@/lib/image-placeholders";
 import { Reveal } from "@/components/reveal";
 import { FogLayer, EyesWatch } from "@/components/scenery";
 import { SectionBackdrop } from "@/components/backdrop";
+import { AnimatedHeadline, WhisperLine } from "@/components/animated-text";
 
 /**
  * Финальный экран: почти чёрный, одна фраза, одно действие.
@@ -39,15 +40,22 @@ export function FinalCta() {
 
       <div className="mx-auto flex max-w-3xl flex-col items-center px-4 py-24 text-center sm:px-6 sm:py-32 lg:py-40">
         <Reveal>
-          <p className="font-mono text-[10px] uppercase tracking-[0.34em] text-crimson">
-            {BUSINESS.workingHours}
-          </p>
+          <WhisperLine text="дверь всё ещё открывается" />
         </Reveal>
 
+        {/* Ключевая фраза сайта. Буквы выходят из темноты по одной, три из них
+            коротко мигают, как неисправная лампа, и под фразой проявляется
+            световая линия — тот же приём, что в интро и в логотипе. */}
         <Reveal delay={1}>
-          <h2 className="mt-6 font-display text-[clamp(2.4rem,11vw,6.4rem)] uppercase leading-[0.88] tracking-[-0.01em] text-bone animate-[flicker_9s_infinite_steps(1,end)]">
-            Ты готов войти?
-          </h2>
+          <AnimatedHeadline
+            as="h2"
+            text="Ты готов войти?"
+            underline
+            delay={0.2}
+            stagger={0.055}
+            flickerCount={3}
+            className="mt-6 font-display text-[clamp(2.1rem,10.5vw,6rem)] uppercase leading-[0.9] tracking-[-0.01em] text-bone"
+          />
         </Reveal>
 
         <Reveal delay={2}>

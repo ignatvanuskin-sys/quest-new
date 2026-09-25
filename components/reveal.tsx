@@ -3,25 +3,20 @@
 import { useEffect, useRef, useState, type ElementType, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
-interface RevealProps {
-  children: ReactNode;
-  className?: string;
-  delay?: 0 | 1 | 2 | 3 | 4;
-  as?: ElementType;
-  /** Скроется ли блок, если он изначально вне экрана (по умолчанию да) */
-  once?: boolean;
-}
-
 /**
- * Появление блока при скролле.
+ * Общая логика «блок уже пора показать».
  *
- * Важный нюанс: IntersectionObserver НЕ срабатывает, если элемент «проскочил»
- * мимо экрана (например, при переходе по якорю из хедера) — он не пересекал
- * вьюпорт. Поэтому дополнительно на каждом кадре скролла проверяем
- * `rect.top < innerHeight`: если блок уже выше нижней границы экрана — показываем.
+ * Возвращает ref и флаг. Помимо IntersectionObserver здесь есть фолбэк:
+ * на каждом кадре скролла проверяется `rect.top < innerHeight`. Без этого
+ * элементы, мимо которых пользователь «проскочил» (переход по якорю,
+ * мгновенный scrollTo в конец страницы), оставались невидимыми навсегда —
+ * IO в таком случае не срабатывает вообще.
+ *
+ * Именно на этом ломались анимации текста и липкие блоки, поэтому логика
+ * вынесена в одно место и переиспользуется и в Reveal, и в анимации букв.
  */
-export function Reveal({ children, className, delay = 0, as: Tag = "div", once = true }: RevealProps) {
-  const ref = useRef<HTMLElement | null>(null);
+export function useRevealed<T extends HTMLElement>(once = true) {
+  const ref = useRef<T | null>(null);
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -33,8 +28,7 @@ export function Reveal({ children, className, delay = 0, as: Tag = "div", once =
       return;
     }
 
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduced) {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       setVisible(true);
       return;
     }
@@ -74,7 +68,6 @@ export function Reveal({ children, className, delay = 0, as: Tag = "div", once =
     observer.observe(element);
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll);
-    // сразу проверяем позицию: блок может уже быть в кадре или выше него
     check();
 
     return () => {
@@ -84,6 +77,29 @@ export function Reveal({ children, className, delay = 0, as: Tag = "div", once =
       if (frame) window.cancelAnimationFrame(frame);
     };
   }, [once]);
+
+  return { ref, visible };
+}
+
+interface RevealProps {
+  children: ReactNode;
+  className?: string;
+  delay?: 0 | 1 | 2 | 3 | 4;
+  as?: ElementType;
+  /** Скроется ли блок, если он изначально вне экрана (по умолчанию да) */
+  once?: boolean;
+}
+
+/**
+ * Появление блока при скролле.
+ *
+ * Важный нюанс: IntersectionObserver НЕ срабатывает, если элемент «проскочил»
+ * мимо экрана (например, при переходе по якорю из хедера) — он не пересекал
+ * вьюпорт. Поэтому дополнительно на каждом кадре скролла проверяем
+ * `rect.top < innerHeight`: если блок уже выше нижней границы экрана — показываем.
+ */
+export function Reveal({ children, className, delay = 0, as: Tag = "div", once = true }: RevealProps) {
+  const { ref, visible } = useRevealed<HTMLElement>(once);
 
   return (
     <Tag

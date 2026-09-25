@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ArrowLeft, ArrowRight, Loader2, Lock, MessageCircle, Phone } from "lucide-react";
-import { BUSINESS, FEAR_MODES, QUESTS, getQuest } from "@/lib/content";
+import { BUSINESS, FEAR_MODES, QUESTS, getFearMode, getQuest } from "@/lib/content";
 import type { MonthDaySummary } from "@/lib/availability";
 import { computePrice } from "@/lib/pricing";
 import type { BookingRecord, DayAvailability, FearModeId } from "@/lib/types";
 import { formatHumanDate, fromISODate, todayISO } from "@/lib/utils";
+import { PhoneInput } from "@/components/booking/phone-input";
 import { Calendar } from "@/components/booking/calendar";
 import { TimeSlots } from "@/components/booking/time-slots";
 import { Extras } from "@/components/booking/extras";
@@ -16,10 +17,16 @@ import { BookingSuccess } from "@/components/booking/success";
 type Step = 1 | 2 | 3;
 
 const STEPS: Array<{ id: Step; label: string; hint: string }> = [
-  { id: 1, label: "Квест", hint: "Что играем и сколько вас" },
-  { id: 2, label: "Дата и время", hint: "Свободные слоты в реальном времени" },
-  { id: 3, label: "Контакты", hint: "Куда написать для подтверждения" },
+  { id: 1, label: "Квест", hint: "что играем и сколько вас" },
+  { id: 2, label: "Дата и время", hint: "свободные слоты" },
+  { id: 3, label: "Контакт", hint: "куда написать" },
 ];
+
+const MESSENGERS = [
+  { id: "whatsapp", label: "WhatsApp", note: "быстрее всего — и предоплата там же" },
+  { id: "telegram", label: "Telegram", note: "если WhatsApp не используете" },
+  { id: "call", label: "Звонок", note: "позвоним сами и всё оформим" },
+] as const;
 
 /**
  * Бронирование в три шага.
@@ -397,15 +404,20 @@ export function BookingFlow({
                 })}
               </ul>
 
+              {/* Выбор страха — четыре компактные кнопки вместо четырёх карточек:
+                  в форме человеку важнее пройти дальше, чем читать описания.
+                  Пояснение показываем только для выбранного уровня. */}
               <div className="mt-8">
-                <h2 className="font-display text-xl uppercase tracking-[0.08em] text-bone">
-                  Уровень страха
-                </h2>
-                <p className="mt-2 text-sm leading-relaxed text-bone-dim">
-                  Его выбирает команда. Если сомневаетесь — берите «Лайт»: актёры работают рядом, но не
-                  касаются.
-                </p>
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <h2 className="font-display text-xl uppercase tracking-[0.08em] text-bone">
+                    Уровень страха
+                  </h2>
+                  <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-ash-text">
+                    можно поменять на месте
+                  </span>
+                </div>
+
+                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4" role="group" aria-label="Уровень страха">
                   {FEAR_MODES.map((mode) => {
                     const available = quest.fearModes.includes(mode.id) && mode.minAge <= 18;
                     const active = fearMode === mode.id;
@@ -416,21 +428,27 @@ export function BookingFlow({
                         disabled={!available}
                         aria-pressed={active}
                         onClick={() => setFearMode(mode.id)}
-                        className={`border p-4 text-left transition ${
-                          active ? "border-crimson bg-blood-deep/30" : "border-bone/12 hover:border-crimson/50"
-                        } ${!available ? "cursor-not-allowed opacity-40" : ""}`}
+                        className={`flex min-h-[60px] flex-col items-start justify-center border px-3 py-2.5 text-left transition ${
+                          active ? "border-crimson bg-blood-deep/40" : "border-bone/12 hover:border-crimson/50"
+                        } ${!available ? "cursor-not-allowed opacity-35" : ""}`}
                       >
-                        <span className="font-display text-base uppercase tracking-[0.06em] text-bone">
+                        <span className="font-display text-[15px] uppercase leading-none tracking-[0.04em] text-bone">
                           {mode.name}
                         </span>
-                        <span className="mt-1 block font-mono text-[10px] uppercase tracking-[0.18em] text-crimson">
-                          {mode.contact} · с {mode.minAge} лет
+                        <span className="mt-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-crimson">
+                          с {mode.minAge}+
                         </span>
-                        <span className="mt-2 block text-xs leading-relaxed text-bone-dim">{mode.note}</span>
                       </button>
                     );
                   })}
                 </div>
+
+                <p className="mt-3 flex flex-wrap items-baseline gap-x-2 text-sm leading-relaxed text-bone-dim">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-crimson">
+                    {getFearMode(fearMode).contact}
+                  </span>
+                  {getFearMode(fearMode).note}
+                </p>
                 {errors.players ? (
                   <p role="alert" className="mt-3 font-mono text-[11px] text-crimson">
                     {errors.players}
@@ -438,7 +456,7 @@ export function BookingFlow({
                 ) : null}
               </div>
 
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <div className="sticky bottom-0 z-30 -mx-4 mt-6 flex flex-col gap-3 border-t border-bone/12 bg-ink/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:flex-row lg:static lg:mx-0 lg:mt-8 lg:border-0 lg:bg-transparent lg:p-0 lg:pb-0 lg:backdrop-blur-none">
                 <button
                   type="button"
                   onClick={handleNext}
@@ -572,7 +590,7 @@ export function BookingFlow({
                 </div>
               </div>
 
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <div className="sticky bottom-0 z-30 -mx-4 mt-6 flex flex-col gap-3 border-t border-bone/12 bg-ink/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:flex-row lg:static lg:mx-0 lg:mt-8 lg:border-0 lg:bg-transparent lg:p-0 lg:pb-0 lg:backdrop-blur-none">
                 <button
                   type="button"
                   onClick={() => goToStep(1)}
@@ -644,73 +662,59 @@ export function BookingFlow({
                   >
                     Телефон *
                   </label>
-                  <input
+                  {/* Маска и жёсткий лимит: лишние цифры просто не вводятся,
+                      номер приводится к формату сам */}
+                  <PhoneInput
                     id="booking-phone"
-                    name="phone"
-                    type="tel"
-                    inputMode="tel"
-                    autoComplete="tel"
-                    autoCorrect="off"
-                    spellCheck={false}
-                    enterKeyHint="next"
                     value={phone}
-                    onChange={(event) => setPhone(event.target.value)}
-                    aria-invalid={Boolean(errors.phone)}
-                    aria-describedby={errors.phone ? "error-phone" : "hint-phone"}
-                    className="field px-4 py-3.5"
-                    placeholder="+7 777 000 00 00"
+                    onChange={(value) => {
+                      setPhone(value);
+                      setErrors((current) => ({ ...current, phone: "" }));
+                    }}
+                    invalid={Boolean(errors.phone)}
+                    describedBy={errors.phone ? "error-phone" : "hint-phone"}
                   />
                   {errors.phone ? (
                     <p id="error-phone" role="alert" className="mt-2 font-mono text-[11px] text-crimson">
                       {errors.phone}
                     </p>
-                  ) : (
-                    <p id="hint-phone" className="mt-2 font-mono text-[10px] text-ash-text">
-                      По этому номеру администратор подтвердит бронь
-                    </p>
-                  )}
+                  ) : null}
                 </div>
               </div>
 
+              {/* Три узких кнопки вместо трёх карточек: WhatsApp выбран заранее,
+                  менять нужно редко — значит, и места это занимать не должно */}
               <fieldset className="mt-6">
                 <legend className="mb-3 font-mono text-[10px] uppercase tracking-[0.22em] text-ash-text">
-                  Куда удобнее написать *
+                  Как с вами связаться
                 </legend>
-                <div className="grid gap-3 sm:grid-cols-3">
-                  {(
-                    [
-                      { id: "whatsapp", label: "WhatsApp", note: "быстрее всего" },
-                      { id: "telegram", label: "Telegram", note: "если нет WhatsApp" },
-                      { id: "call", label: "Звонок", note: "позвоним сами" },
-                    ] as const
-                  ).map((option) => (
+                <div className="grid grid-cols-3 gap-2">
+                  {MESSENGERS.map((option) => (
                     <label
                       key={option.id}
-                      className={`flex cursor-pointer flex-col gap-1 border p-4 transition ${
+                      className={`flex min-h-[52px] cursor-pointer items-center justify-center border px-2 py-2.5 text-center transition focus-within:border-crimson focus-within:ring-1 focus-within:ring-crimson/40 ${
                         messenger === option.id
-                          ? "border-crimson bg-blood-deep/30"
+                          ? "border-crimson bg-blood-deep/40"
                           : "border-bone/12 hover:border-crimson/50"
                       }`}
                     >
-                      <span className="flex items-center gap-2.5">
-                        <input
-                          type="radio"
-                          name="messenger"
-                          value={option.id}
-                          checked={messenger === option.id}
-                          onChange={() => setMessenger(option.id)}
-                          className="h-4 w-4 accent-[#b0121b]"
-                        />
-                        <span className="font-display text-sm uppercase tracking-[0.08em] text-bone">
-                          {option.label}
-                        </span>
-                      </span>
-                      <span className="pl-[26px] font-mono text-[10px] uppercase tracking-[0.14em] text-ash-text">
-                        {option.note}
+                      <input
+                        type="radio"
+                        name="messenger"
+                        value={option.id}
+                        checked={messenger === option.id}
+                        onChange={() => setMessenger(option.id)}
+                        className="sr-only"
+                      />
+                      <span className="font-display text-[13px] uppercase leading-none tracking-[0.04em] text-bone">
+                        {option.label}
                       </span>
                     </label>
                   ))}
                 </div>
+                <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.16em] text-ash-text">
+                  {MESSENGERS.find((option) => option.id === messenger)?.note}
+                </p>
               </fieldset>
 
               {/* Мобильный запасной путь: если печатать неудобно — можно позвонить
@@ -790,7 +794,7 @@ export function BookingFlow({
                 />
               </div>
 
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <div className="sticky bottom-0 z-30 -mx-4 mt-6 flex flex-col gap-3 border-t border-bone/12 bg-ink/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:flex-row lg:static lg:mx-0 lg:mt-8 lg:border-0 lg:bg-transparent lg:p-0 lg:pb-0 lg:backdrop-blur-none">
                 <button
                   type="button"
                   onClick={() => goToStep(2)}
@@ -804,7 +808,7 @@ export function BookingFlow({
                   onClick={handleSubmit}
                   disabled={submitting}
                   data-cursor="[ ПОДТВЕРДИТЬ ]"
-                  className={`btn-blood flex flex-1 items-center justify-center gap-3 px-7 py-4 font-display text-base uppercase tracking-[0.16em] disabled:opacity-70 ${
+                  className={`btn-blood flex flex-1 items-center justify-center gap-2 px-4 py-4 font-display text-[13px] uppercase tracking-[0.1em] disabled:opacity-70 min-[400px]:gap-3 min-[400px]:px-7 min-[400px]:text-base min-[400px]:tracking-[0.16em] ${
                     glitch ? "animate-[shake-x_0.42s_cubic-bezier(0.36,0.07,0.19,0.97)]" : ""
                   }`}
                 >

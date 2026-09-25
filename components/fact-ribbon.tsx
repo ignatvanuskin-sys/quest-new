@@ -10,8 +10,10 @@ export function FactRibbon() {
   const quotes = REVIEW_HIGHLIGHTS.map((quote) => `«${quote}»`);
   const items = [...quotes, ...facts];
 
+  // overflow-hidden на контейнере: бегущая строка длиннее экрана, и без обрезки
+  // она растягивала scrollWidth документа до нескольких тысяч пикселей
   return (
-    <div className="relative border-y border-bone/10 bg-charcoal/80 py-3.5" aria-hidden="true">
+    <div className="relative overflow-hidden border-y border-bone/10 bg-charcoal/80 py-3.5" aria-hidden="true">
       <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-16 bg-gradient-to-r from-ink to-transparent" />
       <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-16 bg-gradient-to-l from-ink to-transparent" />
       <div className="marquee-track">

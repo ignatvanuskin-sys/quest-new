@@ -64,8 +64,14 @@
   html {
     scroll-behavior: smooth;
     background-color: var(--color-ink);
-    /* Отключаем «резинку» и горизонтальный сдвиг на мобильных */
-    overflow-x: hidden;
+    /* ВАЖНО: именно clip, а не hidden.
+       `overflow-x: hidden` превращает элемент в скролл-контейнер, и тогда
+       `position: sticky` внутри body перестаёт липнуть к экрану: диапазон
+       залипания считается от body, высота которого равна его содержимому.
+       Из-за этого раньше не работала липкая кнопка в бронировании.
+       `clip` обрезает вылезающие слои (туман, бегущая строка), но скролл-контейнер
+       не создаёт — sticky снова работает от окна. */
+    overflow-x: clip;
     -webkit-text-size-adjust: 100%;
   }
 
@@ -73,7 +79,7 @@
     background-color: var(--color-ink);
     color: var(--color-bone);
     font-family: var(--font-sans);
-    overflow-x: hidden;
+    overflow-x: clip;
     /* Плёночная кривизна контраста: чуть меньше насыщенности, чуть больше зерна */
     font-synthesis-weight: none;
   }
@@ -785,6 +791,16 @@
 @media (max-width: 767px) {
   html {
     scroll-behavior: auto;
+  }
+}
+
+/* Фолбэк для браузеров без поддержки overflow: clip (Safari 15 и старше):
+   там возвращаем hidden. Липкая кнопка в этих браузерах не залипнет,
+   зато не появится горизонтальный скролл — это важнее. */
+@supports not (overflow: clip) {
+  html,
+  body {
+    overflow-x: hidden;
   }
 }
 
