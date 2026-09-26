@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { availabilityMode } from "@/lib/availability";
 import { getBookingStorage } from "@/lib/bookings";
+import { inspectEnv } from "@/lib/config/env";
 import { getCrmProvider } from "@/lib/providers/crm";
 import { getPaymentProvider } from "@/lib/providers/payment";
 import { notificationsConfigured } from "@/lib/services/notifications";
@@ -61,7 +62,16 @@ export async function GET() {
     );
   }
 
+  /* Конфигурация окружения. Секретов здесь нет по построению: inspectEnv
+     возвращает только имена переменных и суть проблемы, но не значения. */
+  const envReport = inspectEnv();
+
   const checks = {
+    config: {
+      ok: envReport.ok,
+      missing: envReport.missingRequired.map((issue) => issue.variable),
+      warn: envReport.warnings.map((issue) => issue.variable),
+    },
     storage: { ok: storageOk && writable, mode: storageMode, writable },
     database: {
       ok: true,
@@ -90,8 +100,14 @@ export async function GET() {
 
   return NextResponse.json(
     {
-      ok: storageOk && writable,
-      warnings: durableWarnings,
+      // Приложение считается здоровым, только если и хранилище переживает
+      // перезапуск, и конфигурация не имеет критичных пропусков
+      ok: storageOk && writable && envReport.ok,
+      warnings: [
+        ...durableWarnings,
+        ...envReport.missingRequired.map((issue) => `${issue.variable}: ${issue.why}`),
+        ...envReport.warnings.map((issue) => `${issue.variable}: ${issue.why}`),
+      ],
       time: {
         today: businessToday(),
         now: businessNowTime(),

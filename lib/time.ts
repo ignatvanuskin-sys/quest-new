@@ -12,7 +12,39 @@
  * переход на летнее время, и работает одинаково в Node и в браузере.
  */
 
-export const BUSINESS_TIMEZONE = "Asia/Almaty";
+/**
+ * Часовой пояс площадки.
+ *
+ * Берётся из `NEXT_PUBLIC_VENUE_TIMEZONE`, а не из обычной переменной, потому
+ * что этот модуль работает и на клиенте (выбор даты, подсветка прошедших
+ * слотов). Приватная переменная была бы видна только серверу, и календарь
+ * в браузере считал бы «сегодня» по одной зоне, а бронь проверялась бы по
+ * другой — расхождение ровно на сутки.
+ *
+ * Значение проверяется через Intl: опечатка в названии зоны иначе уронила бы
+ * каждую страницу, где считается дата. При неверном значении работаем
+ * по умолчанию и говорим об этом в консоль — площадка важнее педантичности.
+ */
+const DEFAULT_VENUE_TIMEZONE = "Asia/Almaty";
+
+function resolveVenueTimezone(): string {
+  const fromEnv = process.env.NEXT_PUBLIC_VENUE_TIMEZONE?.trim();
+  if (!fromEnv) return DEFAULT_VENUE_TIMEZONE;
+
+  try {
+    // Конструктор бросает RangeError на неизвестную зону — это и есть проверка
+    new Intl.DateTimeFormat("en-CA", { timeZone: fromEnv }).format(new Date());
+    return fromEnv;
+  } catch {
+    console.error(
+      `[time] NEXT_PUBLIC_VENUE_TIMEZONE="${fromEnv}" не является известным часовым поясом. ` +
+        `Использую ${DEFAULT_VENUE_TIMEZONE}. Проверьте переменную окружения.`,
+    );
+    return DEFAULT_VENUE_TIMEZONE;
+  }
+}
+
+export const BUSINESS_TIMEZONE = resolveVenueTimezone();
 
 interface ZoneParts {
   year: number;
