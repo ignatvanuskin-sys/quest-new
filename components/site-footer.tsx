@@ -34,12 +34,15 @@ export function SiteFooter() {
 
           <nav aria-label="Навигация в подвале">
             <h2 className="font-mono text-[10px] uppercase tracking-[0.26em] text-ash-text">Разделы</h2>
-            <ul className="mt-4 grid grid-cols-2 gap-x-6 gap-y-2.5">
+            {/* Тап-цель 44px: по ссылке в подвале промахнуться пальцем очень
+                легко, поэтому высота задана явно. Вертикальный отступ сетки
+                уменьшен — иначе подвал стал бы заметно длиннее. */}
+            <ul className="mt-4 grid grid-cols-2 gap-x-6 gap-y-0.5">
               {NAV.map((item) => (
                 <li key={item.href}>
                   <Link
                     href={item.href}
-                    className="inline-block py-1 text-sm text-bone-dim transition hover:text-bone"
+                    className="inline-flex min-h-[44px] items-center text-sm text-bone-dim transition hover:text-bone"
                     data-cursor="[ СМОТРЕТЬ ]"
                   >
                     {item.label}
@@ -47,7 +50,10 @@ export function SiteFooter() {
                 </li>
               ))}
               <li>
-                <Link href="/booking" className="text-sm text-crimson transition hover:text-bone">
+                <Link
+                  href="/booking"
+                  className="inline-flex min-h-[44px] items-center text-sm text-crimson transition hover:text-bone"
+                >
                   Бронирование
                 </Link>
               </li>
@@ -56,11 +62,13 @@ export function SiteFooter() {
 
           <div>
             <h2 className="font-mono text-[10px] uppercase tracking-[0.26em] text-ash-text">Контакты</h2>
-            <ul className="mt-4 space-y-3 text-sm">
+            {/* Телефон и мессенджеры — то, по чему звонят с телефона.
+                Высота 44px и уменьшенный отступ: промахнуться нельзя. */}
+            <ul className="mt-2 space-y-0.5 text-sm">
               <li>
                 <a
                   href={`tel:${BUSINESS.phone}`}
-                  className="flex items-center gap-2.5 text-bone-dim transition hover:text-bone"
+                  className="flex min-h-[44px] items-center gap-2.5 text-bone-dim transition hover:text-bone"
                 >
                   <Phone className="h-3.5 w-3.5 text-crimson" aria-hidden="true" />
                   {BUSINESS.phonePretty}
@@ -71,7 +79,7 @@ export function SiteFooter() {
                   href={BUSINESS.whatsapp}
                   target="_blank"
                   rel="noopener noreferrer nofollow"
-                  className="flex items-center gap-2.5 text-bone-dim transition hover:text-bone"
+                  className="flex min-h-[44px] items-center gap-2.5 text-bone-dim transition hover:text-bone"
                 >
                   <MessageCircle className="h-3.5 w-3.5 text-crimson" aria-hidden="true" />
                   WhatsApp: бронь и предоплата
@@ -82,7 +90,7 @@ export function SiteFooter() {
                   href={BUSINESS.instagram}
                   target="_blank"
                   rel="noopener noreferrer nofollow"
-                  className="flex items-center gap-2.5 text-bone-dim transition hover:text-bone"
+                  className="flex min-h-[44px] items-center gap-2.5 text-bone-dim transition hover:text-bone"
                 >
                   <Instagram className="h-3.5 w-3.5 text-crimson" aria-hidden="true" />
                   {BUSINESS.instagramHandle}
@@ -91,7 +99,7 @@ export function SiteFooter() {
               <li>
                 <a
                   href={`mailto:${BUSINESS.email}`}
-                  className="flex items-center gap-2.5 text-bone-dim transition hover:text-bone"
+                  className="flex min-h-[44px] items-center gap-2.5 text-bone-dim transition hover:text-bone"
                 >
                   <Mail className="h-3.5 w-3.5 text-crimson" aria-hidden="true" />
                   {BUSINESS.email}

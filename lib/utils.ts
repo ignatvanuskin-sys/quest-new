@@ -2,6 +2,8 @@
 // Небольшие утилиты без внешних зависимостей.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { BUSINESS_TIMEZONE, businessIcsStamp, businessToday, isSlotInPast } from "./time";
+
 /** Склейка классов без зависимости от clsx */
 export function cn(...parts: Array<string | false | null | undefined>): string {
   return parts.filter(Boolean).join(" ");
@@ -44,8 +46,15 @@ export function fromISODate(iso: string): Date {
   return new Date(y, (m ?? 1) - 1, d ?? 1);
 }
 
+/**
+ * Сегодняшняя дата площадки (Алматы), а не дата устройства.
+ *
+ * Экран выбора даты должен ориентироваться на день заведения: человек,
+ * открывший сайт из другого пояса, иначе увидит недоступный «вчерашний» день
+ * или не найдёт сегодняшние слоты.
+ */
 export function todayISO(): string {
-  return toISODate(new Date());
+  return businessToday();
 }
 
 /** «пт, 3 октября» */
@@ -127,12 +136,15 @@ export function seededRandom(seed: number): () => number {
   };
 }
 
-/** Плагин определения «сейчас у нас в городе» — используется для блокировки прошедших слотов */
+/**
+ * Прошёл ли слот — считается по времени площадки.
+ *
+ * Раньше здесь сравнивалось локальное время устройства/сервера: на телефоне
+ * в другом поясе подсветка «прошло» съезжала на часы. Единственный верный
+ * ориентир — бизнес-зона (см. lib/time.ts).
+ */
 export function isSlotPast(dateISO: string, time: string): boolean {
-  const [h, m] = time.split(":").map(Number);
-  const slot = fromISODate(dateISO);
-  slot.setHours(h, m, 0, 0);
-  return slot.getTime() < Date.now();
+  return isSlotInPast(dateISO, time);
 }
 
 /** Плюрализация: 1 игрок / 2 игрока / 5 игроков */
@@ -145,22 +157,23 @@ export function pluralPlayers(n: number): string {
 }
 
 /* ───────────────────────────────────────────────────────────────────────────
-   Файл календаря (.ics) для подтверждённой брони.
+   Файл календаря (.ics) для брони.
 
    Зачем: после брони человеку нужно не потерять дату. Кнопка «добавить
    в календарь» убирает риск забыть (а забытая бронь — это потерянный слот
    и потерянные деньги площадки). Файл собирается на клиенте, сервер не нужен.
+
+   ВАЖНО ПРО ЧАСОВОЙ ПОЯС. Раньше время события собиралось через локальную
+   дату устройства и помечалось как Asia/Almaty: у человека в Москве или
+   Берлине событие вставало в календарь на несколько часов раньше реального
+   старта. Теперь настенное время берётся прямо из строк брони («27.09»,
+   «18:00») — это и есть время площадки, — а конечное время считается
+   арифметикой по минутам, без пересчёта через зону устройства.
    ─────────────────────────────────────────────────────────────────────────── */
 
 /** Экранирование значений по RFC 5545 (запятые и точки с запятой ломают .ics) */
 function icsEscape(value: string): string {
   return value.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
-}
-
-/** Локальное время в формате, который понимает календарь */
-function icsLocal(date: Date): string {
-  const pad = (value: number) => `${value}`.padStart(2, "0");
-  return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}T${pad(date.getHours())}${pad(date.getMinutes())}00`;
 }
 
 export function buildCalendarHref(options: {
@@ -172,10 +185,6 @@ export function buildCalendarHref(options: {
   location: string;
   description: string;
 }): string {
-  const [hours, minutes] = options.time.split(":").map(Number);
-  const start = fromISODate(options.dateISO);
-  start.setHours(hours ?? 0, minutes ?? 0, 0, 0);
-  const end = new Date(start.getTime() + options.durationMinutes * 60_000);
   const stamp = `${new Date().toISOString().replace(/[-:]/g, "").split(".")[0]}Z`;
 
   const lines = [
@@ -183,12 +192,13 @@ export function buildCalendarHref(options: {
     "VERSION:2.0",
     "PRODID:-//Quest Horror Clinic//Booking//RU",
     "CALSCALE:GREGORIAN",
+    // Календарь явно объявляет зону, в которой заданы DTSTART/DTEND
+    `X-WR-TIMEZONE:${BUSINESS_TIMEZONE}`,
     "BEGIN:VEVENT",
     `UID:${options.id}@quest-horror-clinic`,
     `DTSTAMP:${stamp}`,
-    // Площадка работает по времени Алматы (UTC+5)
-    `DTSTART;TZID=Asia/Almaty:${icsLocal(start)}`,
-    `DTEND;TZID=Asia/Almaty:${icsLocal(end)}`,
+    `DTSTART;TZID=${BUSINESS_TIMEZONE}:${businessIcsStamp(options.dateISO, options.time)}`,
+    `DTEND;TZID=${BUSINESS_TIMEZONE}:${businessIcsStamp(options.dateISO, options.time, options.durationMinutes)}`,
     `SUMMARY:${icsEscape(options.title)}`,
     `LOCATION:${icsEscape(options.location)}`,
     `DESCRIPTION:${icsEscape(options.description)}`,

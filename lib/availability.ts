@@ -1,23 +1,32 @@
 import { getQuest } from "./content";
+import { businessAddDays, businessToday, isSlotInPast } from "./time";
 import type { DayAvailability, TimeSlot } from "./types";
-import { hashString, isSlotPast, seededRandom } from "./utils";
+import { hashString, seededRandom } from "./utils";
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  ЗАНЯТОСТЬ СЛОТОВ
 //
-//  ⚠️ Сейчас это ДЕМО-расписание (mock): слоты генерируются детерминированно
-//  из хэша «квест + дата + время», поэтому расписание стабильно для всех
-//  посетителей и не «прыгает» при перезагрузке.
+//  Единственный источник правды о вместимости — реальные брони. Слот свободен,
+//  пока в нём есть места: площадка работает по фиксированной сетке стартов,
+//  и все старты доступны, если их никто не занял.
 //
-//  Как подключить реальный бэкенд:
-//  1) замените тело `buildDayAvailability` на запрос к календарю/CRM
-//     (например, fetch(`${CRM_URL}/slots?quest=...&date=...`));
-//  2) либо оставьте расчёт как есть, но передавайте `bookedSeatsByTime` из
-//     своей базы — здесь уже вычитаются реальные брони, сделанные на сайте.
-//  Контракт функции менять не нужно: UI работает с типом DayAvailability.
+//  Раньше расписание было «демо»: занятость генерировалась из хэша от
+//  «квест + дата + время». Для показательной версии это выглядело живым,
+//  но в продакшене это ложь в интерфейсе — сайт показывал «мест нет»
+//  там, где места есть, и «осталось 2 места» вместо реальной вместимости.
+//  Поэтому теперь два честно разделённых режима:
+//
+//   • "schedule" — реальная сетка + реальные брони (используется по умолчанию);
+//   • "demo"     — та же сетка плюс детерминированная имитация занятости,
+//                  включается только явным флагом (DEMO_AVAILABILITY=1)
+//                  и никогда не включается в production.
+//
+//  Как подключить внешний календарь/CRM: не трогать этот файл, а подключить
+//  другой провайдер (lib/providers/availability.ts) — интерфейс тот же.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const AVAILABILITY_IS_MOCK = true;
+/** Режим источника занятости */
+export type AvailabilityMode = "schedule" | "demo";
 
 /** Сетка стартов игры: 60 минут игра + 30 минут на перезапуск локации */
 export const SLOT_START_TIMES = [
@@ -31,9 +40,88 @@ export const SLOT_START_TIMES = [
   "22:30",
 ] as const;
 
+/**
+ * Включена ли демонстрационная занятость.
+ *
+ * В production флаг по умолчанию выключен — сайт обязан показывать только
+ * реальные брони. В разработке он включён, чтобы расписание выглядело живым
+ * при пустой базе.
+ */
+export function availabilityMode(): AvailabilityMode {
+  const flag = process.env.DEMO_AVAILABILITY;
+  if (flag === "1" || flag === "true") return "demo";
+  if (flag === "0" || flag === "false") return "schedule";
+  return process.env.NODE_ENV === "production" ? "schedule" : "demo";
+}
+
+/** Совместимость: раньше этот флаг означал «расписание ненастоящее» */
+export const AVAILABILITY_IS_MOCK = availabilityMode() === "demo";
+
 export interface AvailabilityOptions {
   /** Сколько мест уже занято в каждом слоте (из базы броней или CRM) */
   bookedSeatsByTime?: Record<string, number>;
+  mode?: AvailabilityMode;
+  /** Момент проверки «прошло ли время» — подставляется в тестах */
+  now?: Date;
+}
+
+function isWeekend(dateISO: string): boolean {
+  const [year, month, day] = dateISO.split("-").map(Number);
+  const weekday = new Date(Date.UTC(year || 1970, (month || 1) - 1, day || 1)).getUTCDay();
+  return weekday === 0 || weekday === 5 || weekday === 6;
+}
+
+/**
+ * Имитация занятости для демонстрационного режима.
+ *
+ * Возвращает занятые места, а не готовые статусы: так демо-профиль проходит
+ * через тот же код, что и реальные брони, и не может «разойтись» с ним.
+ * Формулы оставлены прежними, чтобы демо-версия выглядела как раньше.
+ */
+export function demoOccupancy(questSlug: string, dateISO: string, capacity: number): Record<string, number> {
+  const weekend = isWeekend(dateISO);
+  const occupied: Record<string, number> = {};
+
+  for (const time of SLOT_START_TIMES) {
+    const random = seededRandom(hashString(`${questSlug}|${dateISO}|${time}`))();
+    const hour = Number(time.slice(0, 2));
+    const eveningBoost = hour >= 18 ? 0.12 : 0;
+    const weekendBoost = weekend ? 0.08 : 0;
+    const roll = random - eveningBoost - weekendBoost;
+
+    if (roll < 0.3) {
+      occupied[time] = capacity;
+    } else if (roll < 0.56) {
+      const seatsLeft = 1 + Math.floor(Math.abs(random * 1000) % 4);
+      occupied[time] = Math.max(0, capacity - seatsLeft);
+    } else {
+      const freeRandom = seededRandom(hashString(`${questSlug}|${dateISO}|${time}|free`))();
+      const seatsLeft = Math.max(5, Math.round(capacity * (0.55 + freeRandom * 0.45)));
+      occupied[time] = Math.max(0, capacity - seatsLeft);
+    }
+  }
+
+  return occupied;
+}
+
+/** Собрать занятость слота: реальные брони (+ демо-профиль, если он включён) */
+export function occupancyFor(
+  questSlug: string,
+  dateISO: string,
+  capacity: number,
+  options: AvailabilityOptions = {},
+): Record<string, number> {
+  const mode = options.mode ?? availabilityMode();
+  const real = options.bookedSeatsByTime ?? {};
+
+  if (mode !== "demo") return real;
+
+  const demo = demoOccupancy(questSlug, dateISO, capacity);
+  const merged: Record<string, number> = { ...real };
+  for (const [time, seats] of Object.entries(demo)) {
+    merged[time] = (merged[time] ?? 0) + seats;
+  }
+  return merged;
 }
 
 export function buildDayAvailability(
@@ -43,15 +131,11 @@ export function buildDayAvailability(
 ): DayAvailability {
   const quest = getQuest(questSlug);
   const capacity = quest?.spec.playersMax ?? 15;
-  const booked = options.bookedSeatsByTime ?? {};
-  const [year, month, day] = dateISO.split("-").map(Number);
-  const isWeekend = (() => {
-    const weekday = new Date(year, (month ?? 1) - 1, day ?? 1).getDay();
-    return weekday === 0 || weekday === 5 || weekday === 6;
-  })();
+  const occupied = occupancyFor(questSlug, dateISO, capacity, options);
+  const now = options.now ?? new Date();
 
   const slots: TimeSlot[] = SLOT_START_TIMES.map((time) => {
-    if (isSlotPast(dateISO, time)) {
+    if (isSlotInPast(dateISO, time, now)) {
       return {
         time,
         status: "past" as const,
@@ -61,14 +145,9 @@ export function buildDayAvailability(
       };
     }
 
-    const random = seededRandom(hashString(`${questSlug}|${dateISO}|${time}`))();
-    // Вечерние слоты загружены сильнее — как в реальной жизни
-    const hour = Number(time.slice(0, 2));
-    const eveningBoost = hour >= 18 ? 0.12 : 0;
-    const weekendBoost = isWeekend ? 0.08 : 0;
-    const roll = random - eveningBoost - weekendBoost;
+    const seatsLeft = Math.max(0, capacity - (occupied[time] ?? 0));
 
-    if (roll < 0.3) {
+    if (seatsLeft === 0) {
       return {
         time,
         status: "sold-out" as const,
@@ -78,8 +157,7 @@ export function buildDayAvailability(
       };
     }
 
-    if (roll < 0.56) {
-      const seatsLeft = 1 + Math.floor(Math.abs(random * 1000) % 4);
+    if (seatsLeft <= 4) {
       return {
         time,
         status: "few-left" as const,
@@ -89,39 +167,13 @@ export function buildDayAvailability(
       };
     }
 
-    const freeRandom = seededRandom(hashString(`${questSlug}|${dateISO}|${time}|free`))();
-    const seatsLeft = Math.max(5, Math.round(capacity * (0.55 + freeRandom * 0.45)));
-    return {
-      time,
-      status: "available" as const,
-      seatsLeft,
-      capacity,
-    };
-  });
-
-  // Вычитаем места, уже занятые реальными бронями через сайт
-  const adjusted = slots.map((slot) => {
-    const taken = booked[slot.time] ?? 0;
-    if (taken <= 0 || slot.status === "past" || slot.status === "sold-out") return slot;
-    const seatsLeft = Math.max(0, slot.seatsLeft - taken);
-    if (seatsLeft === 0) {
-      return {
-        ...slot,
-        status: "sold-out" as const,
-        seatsLeft: 0,
-        reason: "Этот слот только что заняли",
-      };
-    }
-    if (seatsLeft <= 4) {
-      return { ...slot, status: "few-left" as const, seatsLeft };
-    }
-    return { ...slot, seatsLeft };
+    return { time, status: "available" as const, seatsLeft, capacity };
   });
 
   return {
     dateISO,
-    slots: adjusted,
-    full: adjusted.every((slot) => slot.status === "sold-out" || slot.status === "past"),
+    slots,
+    full: slots.every((slot) => slot.status === "sold-out" || slot.status === "past"),
   };
 }
 
@@ -138,14 +190,18 @@ export function buildMonthSummary(
   year: number,
   month: number,
   bookedByDate: Record<string, Record<string, number>> = {},
+  mode?: AvailabilityMode,
+  now: Date = new Date(),
 ): Record<string, MonthDaySummary> {
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
   const summary: Record<string, MonthDaySummary> = {};
 
   for (let day = 1; day <= daysInMonth; day += 1) {
     const iso = `${year}-${`${month + 1}`.padStart(2, "0")}-${`${day}`.padStart(2, "0")}`;
     const availability = buildDayAvailability(questSlug, iso, {
       bookedSeatsByTime: bookedByDate[iso],
+      mode,
+      now,
     });
     const bookable = availability.slots.filter((slot) => slot.status !== "past");
     const free = bookable.filter((slot) => slot.status !== "sold-out").length;
@@ -160,20 +216,26 @@ export function buildMonthSummary(
   return summary;
 }
 
-/** Ближайшие свободные слоты — для блока честной срочности на главной */
+/**
+ * Ближайшие свободные слоты — для блока честной срочности на главной.
+ *
+ * Отсчёт идёт от даты площадки (см. lib/time.ts), а не от `new Date()`
+ * устройства: на сервере в другом поясе «первый день» мог быть уже прошедшим.
+ */
 export function nextAvailableSlots(
   questSlug: string,
-  fromDate: Date,
+  fromDateISO: string = businessToday(),
   daysToScan = 3,
   bookedByDate: Record<string, Record<string, number>> = {},
+  mode?: AvailabilityMode,
 ): Array<{ dateISO: string; time: string; seatsLeft: number }> {
   const result: Array<{ dateISO: string; time: string; seatsLeft: number }> = [];
 
   for (let offset = 0; offset < daysToScan && result.length < 3; offset += 1) {
-    const date = new Date(fromDate.getFullYear(), fromDate.getMonth(), fromDate.getDate() + offset);
-    const iso = `${date.getFullYear()}-${`${date.getMonth() + 1}`.padStart(2, "0")}-${`${date.getDate()}`.padStart(2, "0")}`;
+    const iso = businessAddDays(fromDateISO, offset);
     const availability = buildDayAvailability(questSlug, iso, {
       bookedSeatsByTime: bookedByDate[iso],
+      mode,
     });
     for (const slot of availability.slots) {
       if (slot.status === "available" || slot.status === "few-left") {

@@ -47,8 +47,14 @@ function sign(payload: string): string {
 }
 
 export function checkPassword(candidate: string): boolean {
+  /* Пароль по умолчанию существует ТОЛЬКО в режиме разработки — чтобы
+     `npm run dev` не требовал настройки. Раньше условие было «всё, кроме
+     production»: сборка на стенде, в предпросмотре или на сервере с
+     незаданным NODE_ENV открывалась паролем из репозитория. Теперь закрыто
+     всё, кроме явного development. */
   const expected =
-    process.env.ADMIN_PASSWORD ?? (process.env.NODE_ENV === "production" ? "" : "horror-clinic");
+    process.env.ADMIN_PASSWORD ??
+    (process.env.NODE_ENV === "development" ? "horror-clinic" : "");
   if (!expected) return false;
   const a = Buffer.from(candidate.padEnd(64, "\u0000"));
   const b = Buffer.from(expected.padEnd(64, "\u0000"));

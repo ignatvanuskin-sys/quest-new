@@ -127,7 +127,7 @@ export function Reviews() {
                     href={SOCIAL_PROOF.sources[0].url}
                     target="_blank"
                     rel="noopener noreferrer nofollow"
-                    className="inline-block py-2 font-mono text-[10px] uppercase tracking-[0.2em] text-ash-text underline decoration-crimson/40 underline-offset-4 transition hover:text-bone"
+                    className="inline-flex min-h-[44px] items-center font-mono text-[10px] uppercase tracking-[0.2em] text-ash-text underline decoration-crimson/40 underline-offset-4 transition hover:text-bone"
                   >
                     источник
                   </a>

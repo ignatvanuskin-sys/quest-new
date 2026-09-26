@@ -16,7 +16,14 @@ import {
 import { BUSINESS, FEAR_MODES, QUESTS, getFearMode, getQuest } from "@/lib/content";
 import type { MonthDaySummary } from "@/lib/availability";
 import { MIN_GAME_PRICE, PER_PERSON_FROM, PER_PERSON_PRICE, computePrice } from "@/lib/pricing";
-import type { BookingRecord, BookingSelection, DayAvailability, FearModeId } from "@/lib/types";
+import type {
+  BookingConfirmation,
+  BookingRecord,
+  BookingSelection,
+  DayAvailability,
+  FearModeId,
+} from "@/lib/types";
+import { track } from "@/lib/analytics";
 import { formatHumanDate, formatKzt, fromISODate, todayISO } from "@/lib/utils";
 import { FEATURED_REVIEW } from "@/lib/reviews";
 import { PhoneInput } from "@/components/booking/phone-input";
@@ -36,6 +43,45 @@ const STEPS: Array<{ id: Step; label: string; hint: string }> = [
 
 /** Ключ черновика: он же версия — если структура изменится, старый не подхватится */
 const DRAFT_KEY = "hc:booking-draft:v1";
+
+/**
+ * Последнее подтверждение — чтобы обновление страницы не отнимало номер брони.
+ *
+ * Хранятся только неперсональные поля (BookingConfirmation): имени, телефона
+ * и комментария здесь нет, поэтому локальное хранилище не превращается
+ * в копию клиентской базы.
+ */
+const CONFIRMATION_KEY = "hc:booking-confirmation:v1";
+
+function readConfirmation(): BookingConfirmation | null {
+  try {
+    const raw = window.localStorage.getItem(CONFIRMATION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as BookingConfirmation;
+    return parsed?.id && parsed?.questSlug ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Ключ идемпотентности для текущей попытки брони.
+ *
+ * Живёт до тех пор, пока данные формы не изменились: повторная отправка
+ * (двойное нажатие, повтор после обрыва сети) уходит на сервер с тем же
+ * ключом, и сервер возвращает уже созданную бронь вместо второй.
+ * Как только человек что-то поменял — это новая заявка, и ключ новый.
+ */
+function newIdempotencyKey(): string {
+  try {
+    if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+      return crypto.randomUUID();
+    }
+  } catch {
+    /* старый браузер — соберём ключ вручную */
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+}
 
 const MESSENGERS = [
   { id: "whatsapp", label: "WhatsApp", note: "быстрее всего — и предоплата там же" },
@@ -91,8 +137,21 @@ export function BookingFlow({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [failure, setFailure] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [booking, setBooking] = useState<BookingRecord | null>(null);
+  const [booking, setBooking] = useState<BookingConfirmation | null>(null);
   const [glitch, setGlitch] = useState(false);
+
+  /** Ключ идемпотентности и подпись данных, к которым он относится */
+  const idempotencyRef = useRef<string>("");
+  const signatureRef = useRef<string>("");
+
+  const currentIdempotencyKey = (): string => {
+    if (!idempotencyRef.current) idempotencyRef.current = newIdempotencyKey();
+    return idempotencyRef.current;
+  };
+
+  /* Одно событие «начал бронировать» на визит формы: по нему считается
+     конверсия «дошёл до формы → оформил», и дублировать его нельзя */
+  const startedTrackedRef = useRef(false);
 
   const today = todayISO();
   const [cursor, setCursor] = useState(() => {
@@ -190,6 +249,22 @@ export function BookingFlow({
     const initialStep: Step =
       stepFromUrl >= 1 && stepFromUrl <= 3 ? (stepFromUrl as Step) : 1;
     let resolvedQuestSlug = questFromUrl?.slug ?? questSlug;
+
+    /* Обновление страницы на экране успеха.
+       Раньше номер брони терялся: состояние жило только в памяти, а черновик
+       уже удалён. Теперь подтверждение восстанавливается из локального
+       хранилища — и человек снова видит свой номер, адрес и кнопку календаря.
+       Параметров брони в адресе нет намеренно: URL попадает в историю,
+       аналитику и чужие чаты, персональным данным там не место. */
+    if (params.get("done") === "1") {
+      const confirmation = readConfirmation();
+      if (confirmation) {
+        setBooking(confirmation);
+        setStep(initialStep);
+        track("booking_success", { quest: confirmation.questSlug, restored: true });
+        return;
+      }
+    }
 
     try {
       const raw = window.localStorage.getItem(DRAFT_KEY);
@@ -306,6 +381,20 @@ export function BookingFlow({
     } catch {
       /* хранилище недоступно — форма всё равно работает */
     }
+
+    /* Подпись содержимого заявки. Пока она не менялась, повторная отправка
+       считается той же самой попыткой и уходит с прежним ключом идемпотентности.
+       Как только человек поправил данные — это другая заявка, ключ новый. */
+    const signature = [questSlug, players, fearMode, extraIds.join(","), isBirthday, dateISO, time, name, phone].join("|");
+    if (signatureRef.current !== signature) {
+      signatureRef.current = signature;
+      idempotencyRef.current = newIdempotencyKey();
+    }
+
+    if (!startedTrackedRef.current) {
+      startedTrackedRef.current = true;
+      track("booking_started", { quest: questSlug, players });
+    }
   }, [questSlug, players, fearMode, extraIds, isBirthday, dateISO, time, name, phone, messenger, comment, step]);
 
   useEffect(() => {
@@ -348,6 +437,7 @@ export function BookingFlow({
   }, []);
 
   const goToStep = (next: Step) => {
+    if (next !== step) track("booking_step_completed", { from: step, to: next });
     setStep(next);
     setFailure(null);
     // pushState, а не replaceState: тогда кнопка «назад» возвращает на
@@ -417,6 +507,9 @@ export function BookingFlow({
     setFailure(null);
     setSubmitting(true);
 
+    const idempotencyKey = currentIdempotencyKey();
+    track("booking_submitted", { quest: questSlug, players, isBirthday, hasComment: Boolean(comment.trim()) });
+
     try {
       const response = await fetch("/api/bookings", {
         method: "POST",
@@ -433,6 +526,7 @@ export function BookingFlow({
           phone,
           messenger,
           comment: comment.trim(),
+          idempotencyKey,
         }),
       });
 
@@ -451,20 +545,54 @@ export function BookingFlow({
           if (data.errors.players) goToStep(1);
           else if (data.errors.dateISO || data.errors.time) goToStep(2);
         }
+        // Различаем два разных случая: занятый слот и сбой сервера.
+        // Первому нужен другой выбор времени, второму — просто повторить.
+        const reason = data.errors?.time
+          ? "slot_unavailable"
+          : response.status >= 500
+            ? "server_error"
+            : "validation";
+        track("booking_failed", { quest: questSlug, reason });
         setFailure(data.message ?? "Не удалось сохранить бронь. Проверьте данные и попробуйте ещё раз.");
+        // при ошибке ключ сохраняем: повторная отправка не должна создать дубль
         flashGlitch();
         return;
       }
 
-      setBooking(data.booking);
+      /* На экран успеха отдаём только неперсональные поля: имени и телефона
+         в компоненте нет, значит их не нужно и держать в браузере. */
+      const confirmation: BookingConfirmation = {
+        id: data.booking.id,
+        questSlug: data.booking.questSlug,
+        dateISO: data.booking.dateISO,
+        time: data.booking.time,
+        players: data.booking.players,
+        fearMode: data.booking.fearMode,
+        total: data.booking.total,
+        extraNames: data.booking.extraNames,
+      };
+
+      setBooking(confirmation);
       try {
         window.localStorage.removeItem(DRAFT_KEY);
+        // Подтверждение сохраняем, чтобы обновление страницы не потеряло номер брони
+        window.localStorage.setItem(CONFIRMATION_KEY, JSON.stringify(confirmation));
       } catch {
-        /* не критично */
+        /* не критично: без хранилища обновление страницы просто вернёт форму */
       }
+      // Ключ израсходован: следующая заявка должна получить новый
+      idempotencyRef.current = "";
+      track("booking_success", {
+        quest: questSlug,
+        players,
+        duplicate: Boolean(data.duplicate),
+        total: confirmation.total,
+      });
       window.history.replaceState(null, "", `/booking?quest=${questSlug}&done=1`);
       window.requestAnimationFrame(() => topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
     } catch {
+      // Ключ НЕ сбрасываем: повтор уйдёт с тем же ключом и не создаст вторую бронь
+      track("booking_failed", { quest: questSlug, reason: "network" });
       setFailure(
         "Связь с сервером пропала. Данные не потеряны — проверьте соединение и нажмите «Подтвердить бронь» ещё раз, либо напишите нам в WhatsApp.",
       );

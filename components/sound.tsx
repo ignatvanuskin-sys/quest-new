@@ -195,7 +195,7 @@ export function SoundToggle() {
       aria-label={enabled ? "Выключить атмосферный звук" : "Включить атмосферный звук"}
       data-cursor={enabled ? "[ ТИШИНА ]" : "[ ЗВУК ]"}
       onClick={toggle}
-      className="fixed bottom-4 left-4 z-[66] hidden min-h-[40px] items-center gap-2 border border-bone/20 bg-ink/80 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.28em] text-bone-dim backdrop-blur transition hover:border-crimson/60 hover:text-bone md:flex"
+      className="fixed bottom-4 left-4 z-[66] hidden min-h-[44px] items-center gap-2 border border-bone/20 bg-ink/80 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.28em] text-bone-dim backdrop-blur transition hover:border-crimson/60 hover:text-bone md:flex"
     >
       {enabled ? (
         <Volume2 className="h-3.5 w-3.5" aria-hidden="true" />

@@ -1,5 +1,6 @@
 "use client";
 
+import { Fragment } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useRevealed } from "@/components/reveal";
@@ -14,6 +15,18 @@ import { useRevealed } from "@/components/reveal";
    Важно: анимация включается только когда блок попадает в кадр, поэтому
    текст не «проигрывается» пока его не видно. При prefers-reduced-motion
    фраза просто показывается целиком.
+
+   ПРО ПЕРЕНОСЫ СЛОВ — здесь была ошибка, из-за которой слово рвалось
+   посередине. Каждая буква анимируется отдельным <span> с display:inline-block,
+   а у любого inline-block есть место для переноса строки справа. В результате
+   браузер мог разбить «глубоко» как «глубок / о», а «комната» как «комна / та»:
+   строка рвалась в середине слова там, где браузеру было выгоднее.
+
+   Лечится группировкой: буквы собираются в блок-слово с white-space: nowrap,
+   поэтому переносится только слово целиком. Пробелы остаются обычными пробелами
+   между группами — ровно там, где перенос и должен происходить. Тайминг анимации
+   сохранён: индекс буквы считается сквозным по всей фразе, поэтому пробел
+   не сбивает задержки.
    ─────────────────────────────────────────────────────────────────────────── */
 
 interface AnimatedHeadlineProps {
@@ -45,15 +58,25 @@ export function AnimatedHeadline({
   const { ref, visible } = useRevealed<HTMLElement>();
   const reduced = useReducedMotion();
 
-  const characters = Array.from(text);
+  /* Слова с их местом в общей фразе: слово — то, что нельзя разрывать,
+     а сквозной индекс нужен, чтобы задержка шла по всей фразе без сброса. */
+  let cursor = 0;
+  const wordGroups = text.split(" ").map((word, wordIndex) => {
+    const letters = Array.from(word);
+    const start = cursor;
+    // +1 — реальный пробел между словами, он тоже занимает шаг тайминга
+    cursor += letters.length + 1;
+    return { wordIndex, letters, start };
+  });
+  const totalCharacters = Math.max(0, cursor - 1);
 
   // Детерминированный выбор «мигающих» букв: нельзя использовать Math.random
   // на рендере — это ломает гидрацию. Берём буквы по фиксированному шагу.
   const flickerIndexes = new Set<number>();
-  if (flickerCount > 0 && characters.length > 4) {
-    const step = Math.max(2, Math.floor(characters.length / (flickerCount + 1)));
+  if (flickerCount > 0 && totalCharacters > 4) {
+    const step = Math.max(2, Math.floor(totalCharacters / (flickerCount + 1)));
     for (let i = 1; i <= flickerCount; i += 1) {
-      flickerIndexes.add(Math.min(characters.length - 1, i * step));
+      flickerIndexes.add(Math.min(totalCharacters - 1, i * step));
     }
   }
 
@@ -70,33 +93,43 @@ export function AnimatedHeadline({
       <span className="sr-only">{text}</span>
 
       <span aria-hidden="true" className="inline-block">
-        {characters.map((character, index) => {
-          const flickers = flickerIndexes.has(index);
-          return (
-            <motion.span
-              key={`${character}-${index}`}
-              initial={{ opacity: 0, y: 18, filter: "blur(8px)" }}
-              animate={
-                visible
-                  ? {
-                      opacity: flickers ? [0, 1, 0.25, 1, 0.6, 1] : 1,
-                      y: 0,
-                      filter: "blur(0px)",
+        {wordGroups.map((group) => (
+          <Fragment key={group.wordIndex}>
+            {/* Обычный пробел между словами: единственное законное место переноса */}
+            {group.wordIndex > 0 ? " " : null}
+            {/* whitespace-nowrap — слово не рвётся на части ни при какой ширине */}
+            <span className="inline-block whitespace-nowrap">
+              {group.letters.map((character, letterIndex) => {
+                const index = group.start + letterIndex;
+                const flickers = flickerIndexes.has(index);
+                return (
+                  <motion.span
+                    key={`${character}-${index}`}
+                    initial={{ opacity: 0, y: 18, filter: "blur(8px)" }}
+                    animate={
+                      visible
+                        ? {
+                            opacity: flickers ? [0, 1, 0.25, 1, 0.6, 1] : 1,
+                            y: 0,
+                            filter: "blur(0px)",
+                          }
+                        : undefined
                     }
-                  : undefined
-              }
-              transition={{
-                duration: flickers ? 1.1 : 0.6,
-                delay: delay + index * stagger,
-                ease: [0.22, 1, 0.36, 1],
-                times: flickers ? [0, 0.2, 0.35, 0.5, 0.7, 1] : undefined,
-              }}
-              className="inline-block whitespace-pre"
-            >
-              {character === " " ? "\u00A0" : character}
-            </motion.span>
-          );
-        })}
+                    transition={{
+                      duration: flickers ? 1.1 : 0.6,
+                      delay: delay + index * stagger,
+                      ease: [0.22, 1, 0.36, 1],
+                      times: flickers ? [0, 0.2, 0.35, 0.5, 0.7, 1] : undefined,
+                    }}
+                    className="inline-block"
+                  >
+                    {character}
+                  </motion.span>
+                );
+              })}
+            </span>
+          </Fragment>
+        ))}
       </span>
 
       {underline ? (
@@ -104,7 +137,7 @@ export function AnimatedHeadline({
           aria-hidden="true"
           initial={{ scaleX: 0, opacity: 0 }}
           animate={visible ? { scaleX: 1, opacity: 1 } : undefined}
-          transition={{ duration: 1.4, delay: delay + characters.length * stagger, ease: "easeOut" }}
+          transition={{ duration: 1.4, delay: delay + totalCharacters * stagger, ease: "easeOut" }}
           className="mt-4 block h-px w-full origin-left bg-gradient-to-r from-crimson via-crimson/40 to-transparent"
         />
       ) : null}

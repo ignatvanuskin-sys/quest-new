@@ -8,7 +8,11 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "migrate": "node scripts/migrate.mjs",
+    "test": "npm run typecheck && npm run lint",
+    "test:smoke": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/smoke-test.ps1",
+    "verify": "npm run typecheck && npm run lint && npm run build"
   },
   "dependencies": {
     "framer-motion": "^12.23.12",

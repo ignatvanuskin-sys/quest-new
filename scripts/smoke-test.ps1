@@ -176,6 +176,16 @@ if ($fillDate) {
   $filler = Invoke-RestMethod "$base/api/bookings" -Method Post -ContentType "application/json; charset=utf-8" -Body (New-BookingBody @{ dateISO = $fillDate; time = $fillTime; players = $fillSeats; phone = "+7 701 000 00 98" })
   Check "слот занят полностью" ($filler.ok -eq $true) "не удалось занять слот"
 
+  # Промежуточная проверка. Без неё следующий шаг молча проверяет не то, что
+  # задумано: если по какой-то причине слот не закрылся, «переполнение» может
+  # пройти законно — и тест сообщит о несуществующей дыре в продаже мест.
+  # Здесь мы отделяем две разные проблемы: «слот не закрылся» и «сервер продал лишнее».
+  $afterFill = Invoke-RestMethod "$base/api/availability?quest=ritual&date=$fillDate"
+  $slotAfter = @($afterFill.availability.slots | Where-Object { $_.time -eq $fillTime })
+  Check "после заполнения слот закрыт" `
+    ($slotAfter.Count -gt 0 -and $slotAfter[0].status -eq "sold-out" -and [int]$slotAfter[0].seatsLeft -eq 0) `
+    "статус=$($slotAfter[0].status) свободно=$($slotAfter[0].seatsLeft) заполнили=$fillSeats мест (было $fillSeats)"
+
   try {
     Invoke-RestMethod "$base/api/bookings" -Method Post -ContentType "application/json; charset=utf-8" -Body (New-BookingBody @{ dateISO = $fillDate; time = $fillTime; players = 3; phone = "+7 701 000 00 97" }) | Out-Null
     Check "переполнение слота отклонено" $false "сервер продал больше мест, чем есть"

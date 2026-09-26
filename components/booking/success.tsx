@@ -3,15 +3,19 @@
 import Link from "next/link";
 import { CalendarPlus, Check, MessageCircle, Phone } from "lucide-react";
 import { BUSINESS, getFearMode, getLocation, getQuest } from "@/lib/content";
-import type { BookingRecord } from "@/lib/types";
+import type { BookingConfirmation } from "@/lib/types";
 import { buildCalendarHref, formatHumanDate, formatKzt, pluralPlayers } from "@/lib/utils";
+import { track } from "@/lib/analytics";
 import { ShareButton } from "@/components/share-button";
 
 /**
  * Экран успеха. Свет становится спокойнее: после брони напряжение не нужно,
  * человек должен почувствовать, что всё под контролем и заявка не потеряется.
+ *
+ * Компонент принимает только неперсональные данные (BookingConfirmation):
+ * показывать имя и телефон здесь нечего, поэтому и держать их незачем.
  */
-export function BookingSuccess({ booking }: { booking: BookingRecord }) {
+export function BookingSuccess({ booking }: { booking: BookingConfirmation }) {
   const quest = getQuest(booking.questSlug);
   const location = quest ? getLocation(quest.locationId) : null;
   const mode = getFearMode(booking.fearMode);
@@ -101,6 +105,7 @@ export function BookingSuccess({ booking }: { booking: BookingRecord }) {
             })}
             download={`quest-${booking.id}.ics`}
             data-cursor="[ В КАЛЕНДАРЬ ]"
+            onClick={() => track("calendar_added", { quest: booking.questSlug })}
             className="btn-ghost inline-flex min-h-[44px] items-center gap-2 px-4 py-2.5 font-mono text-[10px] uppercase tracking-[0.16em]"
           >
             <CalendarPlus className="h-3.5 w-3.5" aria-hidden="true" />
@@ -130,6 +135,7 @@ export function BookingSuccess({ booking }: { booking: BookingRecord }) {
             )}`}
             target="_blank"
             rel="noopener noreferrer nofollow"
+            onClick={() => track("contact_clicked", { channel: "whatsapp", quest: booking.questSlug })}
             className="btn-blood flex flex-1 items-center justify-center gap-2 px-6 py-4 font-display text-sm uppercase tracking-[0.16em]"
           >
             <MessageCircle className="h-4 w-4" aria-hidden="true" />
@@ -137,6 +143,7 @@ export function BookingSuccess({ booking }: { booking: BookingRecord }) {
           </a>
           <a
             href={`tel:${BUSINESS.phone}`}
+            onClick={() => track("contact_clicked", { channel: "phone" })}
             className="btn-ghost flex flex-1 items-center justify-center gap-2 px-6 py-4 font-mono text-[11px] uppercase tracking-[0.18em]"
           >
             <Phone className="h-3.5 w-3.5" aria-hidden="true" />

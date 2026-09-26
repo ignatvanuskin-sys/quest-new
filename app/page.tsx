@@ -22,6 +22,7 @@ import { BIRTHDAY_PROMO, QUESTS } from "@/lib/content";
 import { bookedSeatsByDate } from "@/lib/bookings";
 import { nextAvailableSlots } from "@/lib/availability";
 import { faqJsonLd } from "@/lib/seo";
+import { businessToday } from "@/lib/time";
 import { formatHumanDate } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -31,12 +32,12 @@ export const dynamic = "force-dynamic";
  * честную срочность в hero и в блоке расписания.
  */
 async function buildLiveSlots(): Promise<HeroSlot[]> {
-  const now = new Date();
+  const today = businessToday();
   const result: HeroSlot[] = [];
 
   for (const quest of QUESTS) {
     const booked = await bookedSeatsByDate(quest.slug);
-    const [slot] = nextAvailableSlots(quest.slug, now, 3, booked);
+    const [slot] = nextAvailableSlots(quest.slug, today, 3, booked);
     if (slot) {
       result.push({
         questSlug: quest.slug,

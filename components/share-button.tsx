@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { Check, Share2 } from "lucide-react";
+import { track } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 
 /**
@@ -33,6 +34,8 @@ export function ShareButton({
   const share = useCallback(async () => {
     const target = url ?? (typeof window !== "undefined" ? window.location.href : "");
     const payload = { title, text: text ?? "", url: target };
+
+    track("share_clicked", { hasUrl: Boolean(url) });
 
     try {
       if (typeof navigator !== "undefined" && navigator.share) {

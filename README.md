@@ -112,7 +112,7 @@ powershell -File scripts/smoke-test.ps1   # 29 API/UI-тестов (нужен �
 | Переменная | Назначение |
 |---|---|
 | `NEXT_PUBLIC_SITE_URL` | Публичный адрес сайта (canonical, OG, sitemap). Также определяет, ставить ли флаг `secure` на cookie админки |
-| `ADMIN_PASSWORD` | Пароль входа в `/admin` (по умолчанию `horror-clinic` — **сменить**) |
+| `ADMIN_PASSWORD` | Пароль входа в `/admin`. **Обязателен** в продакшене: без него вход закрыт. Пароль `horror-clinic` действует только в режиме разработки (`NODE_ENV=development`), поэтому dev-сборку нельзя выставлять в интернет |
 | `ADMIN_SESSION_SECRET` | Секрет подписи cookie админ-сессии (**сменить**) |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | Если заданы — каждая новая бронь уходит сообщением в Telegram |
 

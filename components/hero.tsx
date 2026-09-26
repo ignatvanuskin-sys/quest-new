@@ -6,6 +6,7 @@ import { useRef } from "react";
 import { ArrowDown, Flame, Star, Ticket } from "lucide-react";
 import { BUSINESS } from "@/lib/content";
 import { FogLayer, EyesWatch, StormFlash } from "@/components/scenery";
+import { ShaderBackground } from "@/components/ui/gem-smoke-diamond";
 import { useDesktop } from "@/components/use-media";
 import { priceLine } from "@/lib/pricing";
 import { formatHumanDate, pluralSlots } from "@/lib/utils";
@@ -59,6 +60,28 @@ export function Hero({ liveSlots }: { liveSlots: HeroSlot[] }) {
         </picture>
         <div className="absolute inset-0 bg-gradient-to-t from-ink via-ink/70 to-ink/30" />
         <div className="absolute inset-0 bg-gradient-to-r from-ink/85 via-transparent to-ink/70" />
+
+        {/* WebGL-слой «дым в камне»: живая фактура, которой не может дать
+            статичная фотография.
+
+            Как он встроен, чтобы не сломать уже собранную картинку:
+
+            • mix-blend-screen. Шейдер считает кадр на почти чёрной базе
+              (#050507). В режиме screen чёрное становится прозрачным, поэтому
+              из фотографии проявляется только само свечение — кровяной дым
+              ложится поверх кадра, а не заменяет его серым прямоугольником.
+
+            • маска radial-gradient гасит слой к краям: без неё границы canvas
+              читались бы как отдельный блок.
+
+            • opacity 0.5 и `pointer-events: none` — слой атмосферный, он не
+              мешает читать текст и не перехватывает клики.
+
+            • он лежит НИЖЕ контента (-z-10, как и остальной фон), поэтому
+              заголовок и кнопки остаются поверх, а LCP-элемент не меняется. */}
+        <div className="pointer-events-none absolute inset-0 opacity-50 mix-blend-screen [mask-image:radial-gradient(ellipse_at_50%_42%,black_30%,transparent_76%)] [-webkit-mask-image:radial-gradient(ellipse_at_50%_42%,black_30%,transparent_76%)]">
+          <ShaderBackground shape="diamond" intensity={0.7} timeScale={0.55} vignette={0.45} />
+        </div>
       </motion.div>
 
       {/* Атмосферный слой: дышащий туман, редкая вспышка в глубине, глаза в темноте */}
@@ -196,7 +219,7 @@ export function Hero({ liveSlots }: { liveSlots: HeroSlot[] }) {
               <Link
                 href={`/booking?quest=${hero.questSlug}`}
                 data-cursor="[ ВЗЯТЬ СЛОТ ]"
-                className="inline-block py-1 font-mono text-[10px] uppercase tracking-[0.24em] text-bone underline decoration-crimson/60 underline-offset-4 hover:text-crimson"
+                className="inline-flex min-h-[44px] items-center font-mono text-[10px] uppercase tracking-[0.24em] text-bone underline decoration-crimson/60 underline-offset-4 hover:text-crimson"
               >
                 занять
               </Link>

@@ -101,7 +101,20 @@ export interface BookingSelection {
   comment: string;
 }
 
-export type BookingStatus = "new" | "confirmed" | "completed" | "cancelled";
+/**
+ * Статусы брони. Соответствуют машине состояний в lib/domain/booking-status.ts:
+ * new — ожидает подтверждения, expired — не подтвердили вовремя.
+ */
+export type BookingStatus = "new" | "confirmed" | "completed" | "cancelled" | "expired";
+
+export interface BookingStatusHistoryEntry {
+  status: BookingStatus;
+  at: string;
+  /** Кто изменил: admin, customer, system (истечение), payment-webhook */
+  by: string;
+  /** Пояснение к переходу — например, причина автоматического истечения */
+  note?: string;
+}
 
 export interface BookingRecord extends BookingSelection {
   id: string;
@@ -111,7 +124,46 @@ export interface BookingRecord extends BookingSelection {
   priceBreakdown: PriceLine[];
   status: BookingStatus;
   createdAt: string;
+  /** История переходов — чтобы администратор видел, что и когда произошло */
+  statusHistory?: BookingStatusHistoryEntry[];
+  /** Связь с оплатой: кто и когда подтвердил предоплату */
+  payment?: {
+    provider: string;
+    status: "not_required" | "pending" | "paid" | "failed" | "cancelled";
+    amount?: number;
+    reference?: string;
+    updatedAt?: string;
+  };
+  /** Ключ идемпотентности, с которым создана бронь (защита от двойного submit) */
+  idempotencyKey?: string;
+  /**
+   * Результат выгрузки во внешнюю систему учёта.
+   * Заполняется, только если внешний CRM настроен: администратор должен
+   * видеть, что бронь не попала в чужую систему, а не узнавать об этом
+   * от клиента. При локальном учёте остаётся пустым.
+   */
+  crmSync?: {
+    status: "synced" | "failed" | "skipped";
+    provider: string;
+    at: string;
+    reason?: string;
+  };
+  /** Метки отправленных напоминаний: «24h», «2h». Защита от повторной отправки */
+  remindersSent?: string[];
 }
+
+/**
+ * Минимум данных для экрана успеха и восстановления подтверждения.
+ *
+ * Зачем отдельный тип: после брони человеку нужно вернуться к номеру брони
+ * (например, он обновил страницу). Хранить для этого полную запись с именем
+ * и телефоном на устройстве незачем — экрану успеха персональные данные
+ * не нужны вообще. Так на клиенте не остаётся лишних личных данных.
+ */
+export type BookingConfirmation = Pick<
+  BookingRecord,
+  "id" | "questSlug" | "dateISO" | "time" | "players" | "fearMode" | "total" | "extraNames"
+>;
 
 export interface PriceLine {
   label: string;
