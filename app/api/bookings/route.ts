@@ -63,6 +63,24 @@ export async function POST(request: Request) {
   });
 
   if (!result.ok || !result.record) {
+    if (result.storageUnavailable) {
+      /* Хранилище не может сохранить бронь. Без этого различия клиент получил бы
+         экран «вы записаны», а заявка исчезла бы вместе с инстансом: площадка
+         потеряла бы и клиента, и деньги. Отказываем честно и даём телефон. */
+      log.error("booking_rejected_storage_not_durable", {
+        quest: String(payload.questSlug ?? ""),
+      });
+      return NextResponse.json(
+        {
+          ok: false,
+          retryable: false,
+          message:
+            "Онлайн-бронирование временно недоступно. Позвоните или напишите нам в WhatsApp — забронируем вручную за минуту.",
+        },
+        { status: 503, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+
     return NextResponse.json(
       {
         ok: false,

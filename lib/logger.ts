@@ -17,6 +17,11 @@ export type LogEvent =
   | "booking_created"
   | "booking_duplicate"
   | "booking_failed"
+  // Бронь не принята, потому что хранилище не может её сохранить: на serverless
+  // без базы запись исчезает вместе с инстансом. Это отказ продажи, требующий
+  // вмешательства, а не ошибка пользователя в данных.
+  | "booking_rejected_storage_not_durable"
+  | "booking_storage_not_durable"
   | "booking_cancelled"
   | "booking_status_changed"
   | "slot_unavailable"

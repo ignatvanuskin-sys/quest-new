@@ -245,12 +245,17 @@ class FileStorage extends BaseBookingStorage {
    * Пробный файл удаляется сразу и не мешает основному файлу броней.
    */
   async probeWrite(): Promise<boolean> {
-    const probe = path.join(DATA_DIR, `.write-probe-${process.pid}`);
+    const probe = path.join(DATA_DIR, `.write-probe-${process.pid}-${Date.now()}`);
     try {
       await mkdir(DATA_DIR, { recursive: true });
       await writeFile(probe, "ok", "utf8");
-      await unlink(probe);
-      return true;
+      // Читаем обратно: успешная запись без возможности прочитать файл
+      // (например, доступная только на один вызов прослойка) нам не годится
+      const back = await readFile(probe, "utf8");
+      // Удаление намеренно вне проверки: невозможность убрать пробный файл
+      // не означает, что брони не сохранятся
+      void unlink(probe).catch(() => undefined);
+      return back === "ok";
     } catch {
       return false;
     }
@@ -306,10 +311,27 @@ export interface CreateBookingResult {
   /** Совпадающая бронь — не создаём дубль */
   duplicate?: BookingRecord;
   errors?: Record<string, string>;
+  /**
+   * Хранилище не может сохранить бронь.
+   *
+   * Отдельный признак нужен, чтобы маршрут ответил честным «недоступно», а не
+   * ошибкой валидации: клиент должен понимать, что дело не в его данных, и
+   * получить телефон вместо ложного подтверждения.
+   */
+  storageUnavailable?: boolean;
 }
 
 export async function createBooking(input: CreateBookingInput): Promise<CreateBookingResult> {
   const errors: Record<string, string> = {};
+
+  /* Сначала — переживёт ли бронь перезапуск приложения. Проверка дешёвая и
+     кэшируется на процесс, а цена пропуска велика: клиент увидел бы «вы
+     записаны», а площадка не получила бы заявку. */
+  const durability = await checkStorageDurability();
+  if (!durability.durable) {
+    log.warn("booking_storage_not_durable", { reason: durability.reason });
+    return { ok: false, errors: {}, storageUnavailable: true };
+  }
 
   const quest = getQuest(input.questSlug);
   if (!quest) errors.questSlug = "Такого квеста нет — выберите из каталога.";
@@ -470,6 +492,52 @@ function questExtrasName(id: string): string | null {
     "photo-video": "Фото и видео с игры (по запросу)",
   };
   return map[id] ?? null;
+}
+
+/**
+ * Переживёт ли бронь перезапуск приложения.
+ *
+ * Это не академический вопрос. На serverless-хостинге (Vercel и подобные)
+ * каталог приложения не общий для инстансов и не сохраняется между вызовами:
+ * запись может даже не выбросить ошибку, а данные всё равно исчезнут при
+ * следующем запуске. Проверено на живом деплое: бронь создалась с ответом 201,
+ * а после нового деплоя слот снова стал свободным.
+ *
+ * Пока это так, принимать заявки нельзя: клиент получит экран «вы записаны»,
+ * а площадка — ничего. Поэтому продажа честно останавливается с понятным
+ * сообщением и предложением позвонить, вместо ложного подтверждения.
+ */
+export interface StorageDurability {
+  durable: boolean;
+  reason?: string;
+}
+
+let durabilityCache: StorageDurability | null = null;
+
+export async function checkStorageDurability(): Promise<StorageDurability> {
+  if (durabilityCache) return durabilityCache;
+
+  const serverless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+  const usesFile = !storage.bookedSeatsByTime;
+
+  if (serverless && usesFile) {
+    durabilityCache = {
+      durable: false,
+      reason: "serverless_without_database",
+    };
+    return durabilityCache;
+  }
+
+  if (storage.probeWrite) {
+    const writable = await storage.probeWrite().catch(() => false);
+    if (!writable) {
+      durabilityCache = { durable: false, reason: "storage_not_writable" };
+      return durabilityCache;
+    }
+  }
+
+  durabilityCache = { durable: true };
+  return durabilityCache;
 }
 
 /** Сколько мест занято по слотам на конкретную дату — для расчёта доступности */
