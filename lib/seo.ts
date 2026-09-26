@@ -9,9 +9,31 @@ import type { Quest } from "./types";
 //  «страшный квест», «квест на день рождения», «квест для компании».
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Адрес сайта для canonical, og:url, og:image, robots.txt и sitemap.
+ *
+ * Почему проверка формата и запасной вариант на адрес деплоя:
+ *
+ * На живом деплое обнаружилось, что canonical и og:url отдавались как
+ * `http://localhost:3000`. Причина — переменная `NEXT_PUBLIC_SITE_URL`
+ * подставляется на этапе сборки, и если её там не оказалось (или в ней лежит
+ * заглушка вроде «placeholder»), сайт сообщал поисковику и мессенджерам, что
+ * каноническая версия каждой страницы — недостижимый localhost. Для бизнеса
+ * это означает: страницы не индексируются нормально, а превью ссылки
+ * в Instagram и WhatsApp приходит без картинки.
+ *
+ * Поэтому: пустое и не-URL значение игнорируем, а запасным берём адрес текущего
+ * деплоя (`VERCEL_URL` подставляется платформой в рантайме и всегда корректен).
+ * Правильное решение для продакшена — задать `NEXT_PUBLIC_SITE_URL` реальным
+ * доменом, но сайт не должен ломаться, если этого не сделали.
+ */
 export function getSiteUrl(): string {
-  const fromEnv = process.env.NEXT_PUBLIC_SITE_URL;
-  if (fromEnv) return fromEnv.replace(/\/$/, "");
+  const fromEnv = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  if (fromEnv && /^https?:\/\//i.test(fromEnv)) return fromEnv.replace(/\/+$/, "");
+
+  const deploymentHost = process.env.VERCEL_URL?.trim();
+  if (deploymentHost) return `https://${deploymentHost.replace(/\/+$/, "")}`;
+
   return "http://localhost:3000";
 }
 
