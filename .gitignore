@@ -25,3 +25,6 @@ qa5/
 qa-final/
 .server.log
 .server.err.log
+
+.vercel
+.env*

@@ -38,8 +38,31 @@ export async function GET() {
     storageOk = false;
   }
 
+  /* Проверяем не только чтение, но и запись.
+     Чтение пустого каталога не падает даже на файловой системе, доступной
+     только для чтения, поэтому «список прочитался» ещё не значит, что бронь
+     клиента сохранится. Для дежурного это разница между «работает» и
+     «заявки теряются». */
+  const writable = storage.probeWrite ? await storage.probeWrite().catch(() => false) : true;
+
+  /* Serverless-платформа плюс файловое хранилище — это риск потери броней:
+     каталог инстанса не общий и не переживает перезапуск. Прятать это нельзя,
+     поэтому отдаём предупреждением, а не молчанием. */
+  const serverless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+  const durableWarnings: string[] = [];
+  if (serverless && storageMode === "file") {
+    durableWarnings.push(
+      "Хранилище файловое на serverless-платформе: брони могут не пережить перезапуск инстанса. Задайте DATABASE_URL (см. PRODUCTION.md).",
+    );
+  }
+  if (!writable) {
+    durableWarnings.push(
+      "Каталог данных недоступен для записи: брони не сохраняются. Задайте DATABASE_URL (см. PRODUCTION.md).",
+    );
+  }
+
   const checks = {
-    storage: { ok: storageOk, mode: storageMode },
+    storage: { ok: storageOk && writable, mode: storageMode, writable },
     database: {
       ok: true,
       // База подключена, если хранилище умеет агрегаты напрямую (SQL-репозиторий)
@@ -67,7 +90,8 @@ export async function GET() {
 
   return NextResponse.json(
     {
-      ok: storageOk,
+      ok: storageOk && writable,
+      warnings: durableWarnings,
       time: {
         today: businessToday(),
         now: businessNowTime(),

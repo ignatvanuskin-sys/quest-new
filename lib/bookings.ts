@@ -1,5 +1,5 @@
 import { randomBytes } from "crypto";
-import { mkdir, readFile, writeFile } from "fs/promises";
+import { mkdir, readFile, unlink, writeFile } from "fs/promises";
 import path from "path";
 import { SLOT_START_TIMES } from "./availability";
 import { getFearMode, getQuest } from "./content";
@@ -73,6 +73,16 @@ export interface BookingStorage {
    * списка. Без него расчёт расписания вычитывал бы все брони в память.
    */
   bookedSeatsByTime?(questSlug: string, dateISO: string): Promise<Record<string, number>>;
+  /**
+   * Может ли хранилище реально записать данные.
+   *
+   * Нужен именно отдельной проверкой: чтение пустого каталога не падает даже
+   * на файловой системе только для чтения (например, в serverless), поэтому
+   * «список прочитался» ещё не значит «бронь сохранится». Проверка мониторинга
+   * обязана отвечать на вопрос, который действительно важен: переживёт ли
+   * заявка клиента перезапуск.
+   */
+  probeWrite?(): Promise<boolean>;
   bookedSeatsByDate?(questSlug: string): Promise<Record<string, Record<string, number>>>;
 }
 
@@ -222,6 +232,28 @@ class FileStorage extends BaseBookingStorage {
       await writeFile(DATA_FILE, JSON.stringify(records, null, 2), "utf8");
     });
     await this.writeQueue;
+  }
+
+  /**
+   * Пробная запись в каталог данных.
+   *
+   * Зачем: на serverless-хостинге каталог приложения обычно доступен только
+   * для чтения, а на некоторых платформах — для записи, но не переживает
+   * перезапуск инстанса. В обоих случаях бронь, созданная клиентом, исчезнет,
+   * поэтому мониторинг обязан это показать, а не рапортовать «всё в порядке».
+   *
+   * Пробный файл удаляется сразу и не мешает основному файлу броней.
+   */
+  async probeWrite(): Promise<boolean> {
+    const probe = path.join(DATA_DIR, `.write-probe-${process.pid}`);
+    try {
+      await mkdir(DATA_DIR, { recursive: true });
+      await writeFile(probe, "ok", "utf8");
+      await unlink(probe);
+      return true;
+    } catch {
+      return false;
+    }
   }
 }
 
