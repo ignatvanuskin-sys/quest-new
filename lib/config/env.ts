@@ -25,6 +25,8 @@
  *     коварный вид ошибки: переменная задана, значит выглядит настроенной.
  */
 
+import { PRODUCTION_SITE_URL, isProductionSiteUrl } from "@/lib/seo";
+
 export interface EnvIssue {
   /** Имя переменной окружения. Значение не раскрывается никогда. */
   variable: string;
@@ -120,19 +122,23 @@ export function inspectEnv(options?: { strict?: boolean }): EnvReport {
         variable: "NEXT_PUBLIC_SITE_URL",
         why: "значение не похоже на адрес вида https://example.kz — ссылки в разметке будут битыми",
       });
-    }
-
-    if (!read("ADMIN_PASSWORD")) {
-      missingRequired.push({
-        variable: "ADMIN_PASSWORD",
-        why: "панель администратора полностью закрыта: владелец не увидит брони",
+    } else if (!isProductionSiteUrl()) {
+      // Тот самый случай из аудита: переменная задана, но указывает не на
+      // продакшн-домен (localhost или временный preview-деплой Vercel).
+      warnings.push({
+        variable: "NEXT_PUBLIC_SITE_URL",
+        why: `адрес не совпадает с продакшн-доменом (${PRODUCTION_SITE_URL}): в разметку попадёт временный адрес деплоя, поисковик получит недостижимый canonical`,
       });
     }
 
-    if (!read("ADMIN_SESSION_SECRET")) {
-      missingRequired.push({
-        variable: "ADMIN_SESSION_SECRET",
-        why: "cookie админ-сессии нечем подписывать, вход не работает",
+    if (read("ADMIN_PASSWORD") || read("ADMIN_SESSION_SECRET")) {
+      // Панели администратора у сайта больше нет: заявки приходят в Telegram
+      // или на вебхук, а подтверждает их владелец в переписке. Заданные
+      // переменные больше ни на что не влияют — говорим об этом один раз,
+      // чтобы их убрали из настроек хостинга и не держали лишний секрет.
+      warnings.push({
+        variable: "ADMIN_PASSWORD / ADMIN_SESSION_SECRET",
+        why: "панель администратора удалена, эти переменные больше ни на что не влияют — их можно убрать из настроек хостинга",
       });
     }
 
@@ -145,18 +151,24 @@ export function inspectEnv(options?: { strict?: boolean }): EnvReport {
       });
     }
 
+    if (notificationChannel() === "none") {
+      /* БЛОКЕР, а не предупреждение. Панели администратора у сайта нет,
+         поэтому уведомление — единственный путь, которым владелец узнаёт
+         о заявке. Без него заявка корректно сохраняется в базе, но никто
+         о ней не узнаёт: клиент видит «принято», а запись лежит до
+         следующего кешбэка. Это худший вид поломки — тихий и
+         обнаруживаемый только недовольным клиентом. */
+      missingRequired.push({
+        variable: "TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID / NOTIFY_WEBHOOK_URL",
+        why: "канал уведомлений не настроен, а панели администратора у сайта нет: заявки будут сохраняться, но вы о них не узнаете",
+      });
+    }
+
     // ── Предупреждения ────────────────────────────────────────────────────
     if (!read("CRON_SECRET")) {
       warnings.push({
         variable: "CRON_SECRET",
         why: "планировщик напоминаний не защищён секретом, поэтому внешний вызов недоступен: напоминания и истечение броней не выполняются",
-      });
-    }
-
-    if (notificationChannel() === "none") {
-      warnings.push({
-        variable: "TELEGRAM_BOT_TOKEN / NOTIFY_WEBHOOK_URL",
-        why: "канал уведомлений не настроен: владелец узнаёт о новых бронях только открыв админку",
       });
     }
 
@@ -178,8 +190,6 @@ export function inspectEnv(options?: { strict?: boolean }): EnvReport {
   // ── Проверки, которые полезны всегда ────────────────────────────────────
   for (const name of [
     "NEXT_PUBLIC_SITE_URL",
-    "ADMIN_PASSWORD",
-    "ADMIN_SESSION_SECRET",
     "DATABASE_URL",
     "TELEGRAM_BOT_TOKEN",
     "NOTIFY_WEBHOOK_URL",

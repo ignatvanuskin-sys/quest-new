@@ -28,3 +28,14 @@ qa-final/
 
 .vercel
 .env*
+
+qa6/
+
+# Временные профили Chrome из QA-скриптов (Chrome DevTools Protocol):
+# содержат кэш, логи и базы браузера — коммитить нельзя.
+.qa6-*/
+.qa6/
+
+# Служебные логи локальных прогонов next start
+*.log
+!README.md

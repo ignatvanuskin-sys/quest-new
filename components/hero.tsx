@@ -106,7 +106,16 @@ export function Hero({ liveSlots }: { liveSlots: HeroSlot[] }) {
             <span>хоррор-перформанс в реальном бомбоубежище</span>
           </motion.p>
 
-          <h1 className="font-display uppercase leading-[0.86] tracking-[-0.02em]">
+          {/* Заголовок разбит на два блока ради композиции, но текст должен
+              оставаться цельным: без пробела между span копирование даёт
+              «Не заходиодин.», а скринридер произносит «заходиодин» — одно
+              слово вместо двух. Поэтому визуальные части помечены
+              aria-hidden, а настоящий заголовок лежит в visually-hidden. */}
+          <h1 className="sr-only">Не заходи один.</h1>
+          <div
+            aria-hidden="true"
+            className="font-display uppercase leading-[0.86] tracking-[-0.02em]"
+          >
             <motion.span
               initial={{ opacity: 0, y: 26 }}
               animate={{ opacity: 1, y: 0 }}
@@ -123,7 +132,7 @@ export function Hero({ liveSlots }: { liveSlots: HeroSlot[] }) {
             >
               один.
             </motion.span>
-          </h1>
+          </div>
 
           <motion.p
             initial={{ opacity: 0 }}
@@ -218,10 +227,10 @@ export function Hero({ liveSlots }: { liveSlots: HeroSlot[] }) {
               <span className="font-mono text-[10px] text-crimson">{pluralSlots(hero.seatsLeft)}</span>
               <Link
                 href={`/booking?quest=${hero.questSlug}`}
-                data-cursor="[ ВЗЯТЬ СЛОТ ]"
+                data-cursor="[ ВЫБРАТЬ СЛОТ ]"
                 className="inline-flex min-h-[44px] items-center font-mono text-[10px] uppercase tracking-[0.24em] text-bone underline decoration-crimson/60 underline-offset-4 hover:text-crimson"
               >
-                занять
+                выбрать время
               </Link>
             </motion.div>
           ) : null}

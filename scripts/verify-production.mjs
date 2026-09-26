@@ -62,24 +62,16 @@ if (/^https?:\/\/[^\s]+$/i.test(siteUrl)) {
   blockers.push("SITE URL — NEXT_PUBLIC_SITE_URL не задан: canonical, OG и sitemap будут битыми");
 }
 
-if (read("ADMIN_PASSWORD")) {
-  passed.push("ADMIN — пароль задан");
-} else {
-  blockers.push("ADMIN — ADMIN_PASSWORD не задан: панель администратора закрыта");
-}
-
-if (read("ADMIN_SESSION_SECRET")) {
-  passed.push("ADMIN SESSION — секрет задан");
-} else {
-  blockers.push("ADMIN SESSION — ADMIN_SESSION_SECRET не задан: вход в панель не работает");
+if (read("ADMIN_PASSWORD") || read("ADMIN_SESSION_SECRET")) {
+  warnings.push(
+    "ADMIN — панели администратора больше нет, ADMIN_PASSWORD/ADMIN_SESSION_SECRET можно удалить из настроек",
+  );
 }
 
 /* ── 2. Заглушки ─────────────────────────────────────────────────────────── */
 const PLACEHOLDERS = /^(placeholder|change-?me.*|your[-_]?.*|todo|tbd|xxx|test|example|<.*>)$/i;
 for (const name of [
   "NEXT_PUBLIC_SITE_URL",
-  "ADMIN_PASSWORD",
-  "ADMIN_SESSION_SECRET",
   "DATABASE_URL",
   "TELEGRAM_BOT_TOKEN",
   "TELEGRAM_CHAT_ID",
@@ -134,15 +126,16 @@ if (databaseUrl) {
 }
 
 /* ── 4. Уведомления ──────────────────────────────────────────────────────── */
-const telegramReady = Boolean(read("TELEGRAM_BOT_TOKEN") && read("TELEGRAM_CHAT_ID"));
-const webhookReady = Boolean(read("NOTIFY_WEBHOOK_URL"));
-if (telegramReady && read("TELEGRAM_CHAT_ID")) {
-  passed.push("NOTIFICATIONS — Telegram настроен");
-} else if (webhookReady) {
-  passed.push("NOTIFICATIONS — вебхук настроен");
+const notificationChannelReady = Boolean(
+  (read("TELEGRAM_BOT_TOKEN") && read("TELEGRAM_CHAT_ID")) || read("NOTIFY_WEBHOOK_URL"),
+);
+if (notificationChannelReady) {
+  passed.push("NOTIFICATIONS — Telegram или вебхук настроен");
 } else {
-  warnings.push(
-    "NOTIFICATIONS — канал не настроен: владелец узнаёт о новых бронях только открыв админку",
+  // Панели администратора у сайта нет, поэтому уведомление — единственный
+  // способ узнать о заявке. Без него заявки уходят в никуда.
+  blockers.push(
+    "NOTIFICATIONS — канал не настроен (TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID или NOTIFY_WEBHOOK_URL): заявки сохранятся, но вы о них не узнаете",
   );
 }
 

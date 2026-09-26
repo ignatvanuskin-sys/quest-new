@@ -22,9 +22,7 @@ export function MobileBookingBar() {
   const [visible, setVisible] = useState(false);
 
   const hiddenHere =
-    pathname?.startsWith("/booking") ||
-    pathname?.startsWith("/admin") ||
-    pathname?.startsWith("/quests");
+    pathname?.startsWith("/booking") || pathname?.startsWith("/quests");
 
   useEffect(() => {
     if (hiddenHere) return;

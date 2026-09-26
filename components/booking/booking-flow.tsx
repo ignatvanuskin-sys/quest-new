@@ -88,7 +88,6 @@ const MESSENGERS = [
   { id: "telegram", label: "Telegram", note: "если WhatsApp не используете" },
   { id: "call", label: "Звонок", note: "позвоним сами и всё оформим" },
 ] as const;
-
 /**
  * Бронирование в три шага.
  *
@@ -500,6 +499,23 @@ export function BookingFlow({
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors);
       flashGlitch();
+
+      /* Фокус на первое неправильное поле.
+         Без этого после неудачной отправки фокус остаётся на кнопке, и человеку
+         приходится догадываться, что именно не так и где искать текст ошибки.
+         С клавиатуры это выглядит как тупик: Tab снова уводит вниз по форме,
+         а проблемное поле нигде не подсвечено фокусом.
+         Порядок повторяет порядок полей на экране, поэтому Tab продолжает
+         идти в естественном направлении. */
+      const firstInvalid = ["name", "phone", "consent", "dateISO", "time"].find((key) =>
+        nextErrors[key],
+      );
+      if (firstInvalid) {
+        window.requestAnimationFrame(() => {
+          const field = document.querySelector<HTMLElement>(`[data-error-field="${firstInvalid}"]`);
+          field?.focus();
+        });
+      }
       return;
     }
 
@@ -594,7 +610,7 @@ export function BookingFlow({
       // Ключ НЕ сбрасываем: повтор уйдёт с тем же ключом и не создаст вторую бронь
       track("booking_failed", { quest: questSlug, reason: "network" });
       setFailure(
-        "Связь с сервером пропала. Данные не потеряны — проверьте соединение и нажмите «Подтвердить бронь» ещё раз, либо напишите нам в WhatsApp.",
+        "Связь с сервером пропала. Данные не потеряны — проверьте соединение и нажмите «Отправить заявку» ещё раз, либо напишите нам в WhatsApp.",
       );
       flashGlitch();
     } finally {
@@ -1016,7 +1032,10 @@ export function BookingFlow({
                   data-cursor="[ ДАЛЬШЕ ]"
                   className="btn-blood flex flex-1 items-center justify-center gap-3 px-7 py-4 font-display text-base uppercase tracking-[0.16em]"
                 >
-                  К контактам
+                  {/* «Продолжить к контактам», а не «К контакту»: прежнее
+                      название звучало как внутренний технический шаг
+                      («шаг 2 → шаг 3»), а не как действие человека */}
+                  Продолжить к контактам
                   <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </button>
               </div>
@@ -1052,6 +1071,13 @@ export function BookingFlow({
                     autoCorrect="off"
                     spellCheck={false}
                     enterKeyHint="next"
+                    /* `required` соответствует звёздочке в подписи. Без него
+                       поле выглядит обязательным, но для скринридера и для
+                       браузерной автозаполняемости обязательным не является,
+                       а ошибка появляется только после нажатия «Отправить». */
+                    required
+                    /* Якорь для автоматической фокусировки после ошибки */
+                    data-error-field="name"
                     value={name}
                     onChange={(event) => setName(event.target.value)}
                     aria-invalid={Boolean(errors.name)}
@@ -1095,10 +1121,14 @@ export function BookingFlow({
 
               {/* Три узких кнопки вместо трёх карточек: WhatsApp выбран заранее,
                   менять нужно редко — значит, и места это занимать не должно */}
-              <fieldset className="mt-6">
+              <fieldset className="mt-6" aria-describedby="messenger-hint">
                 <legend className="mb-3 font-mono text-[10px] uppercase tracking-[0.22em] text-ash-text">
                   Как с вами связаться
                 </legend>
+                <p className="mb-3 text-xs leading-relaxed text-bone-dim">
+                  Заявка уже ушла администратору в Telegram — он напишет вам
+                  самим в выбранный канал и пришлёт реквизиты предоплаты.
+                </p>
                 <div className="grid grid-cols-3 gap-2">
                   {MESSENGERS.map((option) => (
                     <label
@@ -1115,6 +1145,11 @@ export function BookingFlow({
                         value={option.id}
                         checked={messenger === option.id}
                         onChange={() => setMessenger(option.id)}
+                        /* У группы радиокнопок выбор всегда сделан (по умолчанию
+                           WhatsApp), поэтому `required` здесь не нужен: он
+                           заставил бы экранридер объявлять «обязательное»
+                           у поля, которое уже заполнено. Нативная семантика
+                           группы обеспечивается самим <fieldset>/<legend>. */
                         className="sr-only"
                       />
                       <span className="font-display text-[13px] uppercase leading-none tracking-[0.04em] text-bone">
@@ -1123,7 +1158,7 @@ export function BookingFlow({
                     </label>
                   ))}
                 </div>
-                <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.16em] text-ash-text">
+                <p id="messenger-hint" className="mt-2 font-mono text-[10px] uppercase tracking-[0.16em] text-ash-text">
                   {MESSENGERS.find((option) => option.id === messenger)?.note}
                 </p>
               </fieldset>
@@ -1176,15 +1211,21 @@ export function BookingFlow({
               <label className="mt-5 flex cursor-pointer items-start gap-3 text-sm text-bone-dim">
                 <input
                   type="checkbox"
+                  /* Согласие на обработку персональных данных обязательно по
+                     закону, поэтому оно помечено нативно, а не только
+                     звёздочкой и кастомной проверкой. */
+                  required
+                  data-error-field="consent"
                   checked={consent}
                   onChange={(event) => setConsent(event.target.checked)}
                   aria-invalid={Boolean(errors.consent)}
-                  className="mt-0.5 h-4 w-4 accent-[#b0121b]"
+                  aria-describedby={errors.consent ? "error-consent" : undefined}
+                  className="mt-1 h-5 w-5 shrink-0 accent-[#b0121b]"
                 />
                 <span>
                   Согласен на обработку персональных данных для оформления и подтверждения брони.
                   {errors.consent ? (
-                    <span role="alert" className="mt-1 block font-mono text-[11px] text-crimson">
+                    <span id="error-consent" role="alert" className="mt-1 block font-mono text-[11px] text-crimson">
                       {errors.consent}
                     </span>
                   ) : null}
@@ -1253,7 +1294,12 @@ export function BookingFlow({
                   ) : (
                     <>
                       <Lock className="h-4 w-4" aria-hidden="true" />
-                      Подтвердить бронь · {price.total.toLocaleString("ru-RU")} ₸
+                      {/* «Отправить заявку», а не «Подтвердить бронь»: нажатие
+                          здесь не бронирует и не списывает деньги — оно
+                          отправляет заявку, а подтверждает администратор
+                          в мессенджере. Старое название обещало больше,
+                          чем происходит на самом деле. */}
+                      Отправить заявку · {price.total.toLocaleString("ru-RU")} ₸
                     </>
                   )}
                 </button>

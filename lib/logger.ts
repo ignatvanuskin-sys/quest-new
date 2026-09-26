@@ -33,8 +33,6 @@ export type LogEvent =
   | "crm_sync_failed"
   | "notification_failed"
   | "notification_sent"
-  | "admin_login_failed"
-  | "admin_login_success"
   | "rate_limited"
   | "storage_degraded"
   | "reminder_scan"

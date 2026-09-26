@@ -47,8 +47,13 @@ export function Gallery() {
                 <span className="font-display text-lg uppercase tracking-[0.1em] text-bone">
                   Команда вышла. Живая.
                 </span>
+              {/* Раньше здесь стояла подпись «демо-изображение для макета».
+                  В продакшене она читалась как «фото у нас настоящие, но
+                  показан не настоящий» — и обесценивала всю секцию.
+                  Теперь сказано прямо: снимок иллюстрирует раздел, а реальные
+                  кадры команд лежат в Instagram, ссылка на который рядом. */}
                 <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-ash-text">
-                  демо-изображение для макета
+                  иллюстрация раздела
                 </span>
               </figcaption>
             </figure>

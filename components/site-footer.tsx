@@ -123,18 +123,16 @@ export function SiteFooter() {
             © {new Date().getFullYear()} {BUSINESS.name}. Цены, адреса и режим работы — актуальные данные
             площадки. Итоговую стоимость подтверждает администратор при бронировании.
           </p>
+          {/* Ссылка на панель администратора здесь была и была удалена вместе
+              с самой панелью: публичная точка входа — это приглашение к
+              перебору пароля. Теперь заявка приходит владельцу в Telegram
+              или на вебхук, а подтверждает её человек в переписке. */}
           <div className="flex items-center gap-5">
             <Link
               href="/booking"
               className="inline-flex min-h-[44px] items-center font-mono text-[10px] uppercase tracking-[0.22em] text-bone-dim hover:text-bone"
             >
               Забронировать
-            </Link>
-            <Link
-              href="/admin"
-              className="inline-flex min-h-[44px] items-center font-mono text-[10px] uppercase tracking-[0.22em] text-ash-text hover:text-bone-dim"
-            >
-              Панель администратора
             </Link>
           </div>
         </div>

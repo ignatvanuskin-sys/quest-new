@@ -39,8 +39,12 @@ export default async function BookingPage({
             Забронировать <span className="text-crimson">игру</span>
           </h1>
           <p className="mt-5 max-w-2xl text-base leading-relaxed text-bone-dim sm:text-lg">
-            Три шага: сценарий и команда → дата, время и уровень страха → контакт для подтверждения. Оплата на
-            сайте не списывается.
+            Три шага — это шаги <span className="text-bone">заявки</span>: сценарий и команда → дата, время и
+            уровень страха → контакт. Оплата на сайте не списывается.
+          </p>
+          <p className="mt-3 max-w-2xl text-sm leading-relaxed text-bone-dim sm:text-base">
+            После заявки администратор напишет вам в выбранном мессенджере, подтвердит бронь и пришлёт
+            реквизиты предоплаты. Слоты заняты после предоплаты, а не сразу после отправки формы.
           </p>
 
           <ul className="mt-8 grid gap-3 sm:grid-cols-3">

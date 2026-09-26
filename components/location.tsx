@@ -120,7 +120,7 @@ export function LocationSection() {
               href={BUSINESS.instagram}
               target="_blank"
               rel="noopener noreferrer nofollow"
-              className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.2em] text-bone-dim underline decoration-crimson/50 underline-offset-4 hover:text-bone"
+              className="inline-flex min-h-[44px] items-center gap-2 font-mono text-[11px] uppercase tracking-[0.2em] text-bone-dim underline decoration-crimson/50 underline-offset-4 hover:text-bone"
             >
               {BUSINESS.instagramHandle}
               <ExternalLink className="h-3 w-3" aria-hidden="true" />

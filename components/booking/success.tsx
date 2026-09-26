@@ -33,9 +33,30 @@ export function BookingSuccess({ booking }: { booking: BookingConfirmation }) {
           Заявка принята
         </h2>
         <p className="mt-4 max-w-xl text-sm leading-relaxed text-bone-dim sm:text-base">
-          Номер брони <span className="font-mono text-bone">{booking.id}</span>. Мы сохранили её и передали
+          Номер заявки <span className="font-mono text-bone">{booking.id}</span>. Мы сохранили её и передали
           администратору. {BUSINESS.prepaymentNote}
         </p>
+
+        {/* Что будет дальше — по шагам и с ожиданием. Без этого человек
+            не понимает, «сработало» ли нажатие, и ждёт в пустоту или звонит
+            через десять минут. Здесь прямо сказано: бронь подтверждает
+            человек, в мессенджере, и до этого слот ещё не закреплён. */}
+        <ol className="mt-6 max-w-xl space-y-2 border border-crimson/30 bg-blood-deep/20 p-4 text-sm leading-relaxed text-bone-dim">
+          <li className="flex items-start gap-2">
+            <span className="font-mono text-[11px] text-crimson">01</span>
+            Заявка уже у администратора — подтвердите её одним касанием кнопки ниже.
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="font-mono text-[11px] text-crimson">02</span>
+            Он напишет вам в выбранный мессенджер в рабочие часы площадки (12:00–23:00) и ответит на
+            вопросы по сценарию.
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="font-mono text-[11px] text-crimson">03</span>
+            После этого пришлёт реквизиты предоплаты. Слот считается занятым с момента оплаты, не с
+            момента отправки формы.
+          </li>
+        </ol>
 
         <dl className="mt-7 grid gap-x-6 gap-y-4 border-y border-bone/10 py-5 sm:grid-cols-2">
           <div>

@@ -103,6 +103,10 @@ export async function GET() {
       // Приложение считается здоровым, только если и хранилище переживает
       // перезапуск, и конфигурация не имеет критичных пропусков
       ok: storageOk && writable && envReport.ok,
+      /* Короткий вердикт для дежурного: читается с первого взгляда, без
+         разбора вложенных проверок. Главный вопрос после удаления панели —
+         «дойдёт ли до меня заявка», и он вынесен в первую строку. */
+      headline: notificationSummary(envReport),
       warnings: [
         ...durableWarnings,
         ...envReport.missingRequired.map((issue) => `${issue.variable}: ${issue.why}`),
@@ -117,4 +121,23 @@ export async function GET() {
     },
     { headers: { "Cache-Control": "no-store" } },
   );
+}
+
+/**
+ * Короткий вердикт одним предложением: система работает / не работает и
+ * из-за чего. Отдельная функция, потому что это первое, что читает человек
+ * после открытия /api/health, а собирать его inline среди JSON-полей —
+ * значит спрятать.
+ */
+function notificationSummary(report: ReturnType<typeof inspectEnv>): string {
+  const delivered = notificationsConfigured();
+  const durable = report.missingRequired.every((issue) => issue.variable !== "DATABASE_URL");
+
+  if (!delivered) {
+    return "НЕ РАБОТАЕТ: заявки сохраняются, но уведомления не настроены — вы их не увидите";
+  }
+  if (!durable) {
+    return "НЕ РАБОТАЕТ: нет базы данных, заявки не переживут перезапуск";
+  }
+  return "Работает: заявка сохраняется и приходит в Telegram/вебхук";
 }

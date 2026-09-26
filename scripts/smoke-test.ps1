@@ -196,45 +196,35 @@ if ($fillDate) {
   }
 }
 
-Write-Host "`n== 5. Защита админки ==" -ForegroundColor Cyan
+Write-Host "`n== 5. Служебные адреса закрыты ==" -ForegroundColor Cyan
 
-# Запрос с чужого домена не должен проходить на изменяющие эндпоинты
+# Панели администратора у сайта больше нет: страница не должна существовать.
 try {
-  Invoke-RestMethod "$base/api/admin/session" -Method Post -Headers @{ Origin = "https://evil.example.com" } -ContentType "application/json" -Body (@{ password = "horror-clinic" } | ConvertTo-Json) | Out-Null
-  Check "вход с чужого домена отклонён" $false "запрос с внешним Origin прошёл"
+  Invoke-WebRequest "$base/admin" -UseBasicParsing | Out-Null
+  Check "/admin не отдаётся (404)" $false "страница /admin доступна"
 } catch {
-  Check "вход с чужого домена отклонён (403)" ($_.Exception.Response.StatusCode.value__ -eq 403) "код $($_.Exception.Response.StatusCode.value__)"
+  Check "/admin не отдаётся (404)" ($_.Exception.Response.StatusCode.value__ -eq 404) "код $($_.Exception.Response.StatusCode.value__)"
 }
 
+# Список броней с именами и телефонами не должен отдаваться анонимно:
+# это персональные данные клиентов.
 try {
   Invoke-RestMethod "$base/api/bookings" | Out-Null
-  Check "список броней закрыт без входа" $false "список доступен анонимно"
+  Check "список броней недоступен анонимно" $false "GET /api/bookings ответил успехом"
 } catch {
-  Check "список броней закрыт без входа (401)" ($_.Exception.Response.StatusCode.value__ -eq 401) "код $($_.Exception.Response.StatusCode.value__)"
+  Check "список броней недоступен анонимно (405)" ($_.Exception.Response.StatusCode.value__ -eq 405) "код $($_.Exception.Response.StatusCode.value__)"
 }
 
-# Пароль админки берём из окружения или из .env.local — в продакшене
-# дефолтного пароля больше нет, панель без переменных просто отключена
-$adminPassword = $env:ADMIN_PASSWORD
-if (-not $adminPassword -and (Test-Path ".env.local")) {
-  $line = Select-String -Path ".env.local" -Pattern "^ADMIN_PASSWORD=" | Select-Object -First 1
-  if ($line) { $adminPassword = ($line.Line -replace "^ADMIN_PASSWORD=", "").Trim() }
+# Планировщик напоминаний рассылает клиентам сообщения — только по секрету.
+try {
+  Invoke-RestMethod "$base/api/cron/reminders" | Out-Null
+  Check "планировщик закрыт без секрета" $false "GET /api/cron/reminders прошёл без авторизации"
+} catch {
+  Check "планировщик закрыт без секрета (401)" ($_.Exception.Response.StatusCode.value__ -eq 401) "код $($_.Exception.Response.StatusCode.value__)"
 }
-if (-not $adminPassword) { $adminPassword = "horror-clinic" }
-
-$session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
-$login = Invoke-RestMethod "$base/api/admin/session" -Method Post -WebSession $session -ContentType "application/json" -Body (@{ password = $adminPassword } | ConvertTo-Json)
-Check "вход по паролю" ($login.ok -eq $true) "ответ: $($login | ConvertTo-Json -Compress)"
-
-$list = Invoke-RestMethod "$base/api/bookings" -WebSession $session
-Check "админ видит брони" ($list.ok -eq $true -and $list.bookings.Count -ge 1) "броней: $($list.bookings.Count)"
-Check "статистика посчитана" ($list.stats.total -ge 1 -and $list.stats.revenue -gt 0) "статистика: $($list.stats | ConvertTo-Json -Compress)"
-
-$patched = Invoke-RestMethod "$base/api/bookings/$($created.booking.id)" -Method Patch -WebSession $session -ContentType "application/json" -Body (@{ status = "confirmed" } | ConvertTo-Json)
-Check "смена статуса брони" ($patched.booking.status -eq "confirmed") "статус: $($patched.booking.status)"
 
 Write-Host "`n== 6. Страницы ==" -ForegroundColor Cyan
-foreach ($path in @("/booking", "/quests/ritual", "/quests/karatelnaya-psihiatriya", "/admin", "/sitemap.xml", "/robots.txt")) {
+foreach ($path in @("/booking", "/quests/ritual", "/quests/karatelnaya-psihiatriya", "/sitemap.xml", "/robots.txt")) {
   $page = Invoke-WebRequest "$base$path" -UseBasicParsing
   Check "GET $path = 200" ($page.StatusCode -eq 200) "код $($page.StatusCode)"
 }

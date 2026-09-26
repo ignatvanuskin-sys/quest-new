@@ -51,8 +51,11 @@ export async function generateMetadata({
     title,
     description,
     alternates: { canonical: `/quests/${quest.slug}` },
+    /* `website`, а не `article`: страница квеста — коммерческое предложение
+       с расписанием и ценой, а не публикация в ленте. Старый тип заставлял
+       мессенджеры показывать её как статью. */
     openGraph: {
-      type: "article",
+      type: "website",
       title,
       description,
       images: [{ url: quest.image, width: 1536, height: 1024, alt: quest.imageAlt }],
@@ -74,14 +77,28 @@ const QUEST_BANDS: Record<string, string> = {
   "nezvanye-gosti": "/images/band-hall.jpg",
 };
 
-/** Отзывы, относящиеся к этому сценарию (по названию, как на сайте площадки) */
+/**
+ * Отзывы, относящиеся к этому сценарию (по названию, как на сайте площадки).
+ *
+ * Названия квестов теперь различают филиалы через «·» (например,
+ * «Карательная психиатрия · Бомбоубежище»), поэтому сравнение идёт по общей
+ * части названия до разделителя. Это честнее, чем прежний `slice(0, 3)`:
+ * раньше квест без единого своего отзыва показывал чужие отзывы и создавал
+ * впечатление, что площадка «не проверена». Теперь для таких сценариев
+ * отзывов не будет — и это правда, а не пустота.
+ */
 function reviewsForQuest(title: string) {
-  const key = title.split("—")[0].trim().split(".")[0].trim().toLowerCase();
-  const direct = REVIEWS.filter((review) => {
+  const key = title
+    .split("·")[0]
+    .split("—")[0]
+    .split(".")
+    .join(" ")
+    .trim()
+    .toLowerCase();
+  return REVIEWS.filter((review) => {
     const reviewQuest = review.quest.toLowerCase();
     return reviewQuest.startsWith(key) || key.startsWith(reviewQuest);
   });
-  return direct.length > 0 ? direct : REVIEWS.slice(0, 3);
 }
 
 export default async function QuestPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -164,7 +181,13 @@ export default async function QuestPage({ params }: { params: Promise<{ slug: st
               <dt className="font-mono text-[10px] uppercase tracking-[0.22em] text-ash-text">Цена</dt>
               <dd className="mt-1 font-display text-xl text-bone">
                 {formatKzt(MIN_GAME_PRICE)}
-                <span className="ml-1 font-mono text-[10px] text-ash-text">за игру</span>
+                {/* Подпись «за игру» вынесена в блок, а не в `ml-1` рядом с
+                    суммой. В строке они визуально слипались («15 000 ₸за
+                    игру»): тенге набирается гротескным шрифтом, и отступ
+                    съедался межбуквенным интервалом. */}
+                <span className="mt-0.5 block font-mono text-[10px] uppercase tracking-[0.2em] text-ash-text">
+                  за игру · {GAME_PRICE_TEAM}
+                </span>
                 <span className="mt-0.5 block font-mono text-[10px] uppercase tracking-[0.13em] text-crimson">
                   от {formatKzt(PER_PERSON_PRICE)} с человека от {PER_PERSON_FROM} чел.
                 </span>
@@ -382,15 +405,32 @@ export default async function QuestPage({ params }: { params: Promise<{ slug: st
                 </>
               }
               lead={
-                reviews.length > 0 && reviewsForQuest(quest.title).length > 0
+                reviews.length > 0
                   ? "Реальные отзывы с официального сайта площадки, относящиеся к этому сценарию."
-                  : "По этому сценарию отдельных отзывов пока нет — показываем отзывы о площадке."
+                  : "Отдельных отзывов об этом сценарии на сайте площадки пока нет — мы не сочиняем их. Ниже рейтинг площадки и ссылка на источник."
               }
             />
           </Reveal>
 
+          {/* Нет отзывов — говорим об этом прямо, а не показываем пустую
+              сетку. Заодно объясняем, что делать: сыграть и стать первым. */}
+          {reviews.length === 0 ? (
+            <Reveal>
+              <div className="mt-8 border border-bone/12 bg-ink/60 p-5">
+                <p className="text-sm leading-relaxed text-bone-dim">
+                  Этот сценарий новый или просто ещё не собирал отзывов. Рейтинг площадки —{" "}
+                  <span className="text-bone">
+                    {BUSINESS.rating} / {BUSINESS.ratingScale}
+                  </span>{" "}
+                  по отзывам игроков, и проверить их можно на официальном сайте и в 2ГИС. Если сыграете —
+                  будете первым, кто расскажет об этом сценарии.
+                </p>
+              </div>
+            </Reveal>
+          ) : null}
+
           <div className="mt-10 grid gap-4 md:grid-cols-3">
-            {reviews.map((review) => (
+            {reviews.slice(0, 3).map((review) => (
               <Reveal key={review.id}>
                 <figure className="card-horror h-full p-5">
                   <div className="flex items-center justify-between">

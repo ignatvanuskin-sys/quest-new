@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { Gift } from "lucide-react";
 import { Hero, type HeroSlot } from "@/components/hero";
 import { FactRibbon } from "@/components/fact-ribbon";
@@ -28,17 +28,38 @@ import { formatHumanDate } from "@/lib/utils";
 export const dynamic = "force-dynamic";
 
 /**
- * Ближайшие свободные слоты по всем квестам: на их основе показываем
- * честную срочность в hero и в блоке расписания.
+ * Ближайшие свободные слоты для главной.
+ *
+ * ГЛАВНАЯ ПРОБЛЕМА, которую это решает. Раньше для каждого квеста брался
+ * ровно один ближайший слот, а расписание у всех квестов общее. В итоге
+ * блок «Занятость сейчас» показывал одну и ту же строку три раза:
+ * «26 сентября, 19:30, 15 мест». Для посетителя это читается однозначно —
+ * данные не настоящие, а значит и ценам рядом тоже перестаёшь верить.
+ * Слот, который человек не дождался, не вернуть никаким дизайном.
+ *
+ * Теперь по каждому квесту берётся несколько ближайших слотов, а затем
+ * из общего списка оставляются только РАЗНЫЕ по дате и времени. Повторов
+ * не остаётся, и на главной видно реальное расписание — ровно то, которое
+ * потом покажет календарь в бронировании.
  */
 async function buildLiveSlots(): Promise<HeroSlot[]> {
   const today = businessToday();
+  const seen = new Set<string>();
   const result: HeroSlot[] = [];
 
   for (const quest of QUESTS) {
     const booked = await bookedSeatsByDate(quest.slug);
-    const [slot] = nextAvailableSlots(quest.slug, today, 3, booked);
-    if (slot) {
+    // Несколько слотов на квест: иначе дедуплицировать нечего, и в блоке
+    // снова останется одна и та же строка на все шесть сценариев.
+    const slots = nextAvailableSlots(quest.slug, today, 3, booked);
+
+    for (const slot of slots) {
+      const key = `${slot.dateISO}|${slot.time}`;
+      // Один и тот же слот в разных квестах — это дубликат в интерфейсе.
+      // Первое упоминание оставляем: чем раньше по времени, тем ближе к делу.
+      if (seen.has(key)) continue;
+      seen.add(key);
+
       result.push({
         questSlug: quest.slug,
         questTitle: quest.title,
@@ -49,16 +70,16 @@ async function buildLiveSlots(): Promise<HeroSlot[]> {
     }
   }
 
-  return result.sort((a, b) =>
-    `${a.dateISO}${a.time}` < `${b.dateISO}${b.time}` ? -1 : 1,
-  );
+  return result
+    .sort((a, b) => `${a.dateISO}${a.time}`.localeCompare(`${b.dateISO}${b.time}`))
+    .slice(0, 4);
 }
 
 export default async function HomePage() {
   const liveSlots = await buildLiveSlots();
+  // Слоты на главной уже уникальны (см. buildLiveSlots), поэтому в блоке
+  // расписания не может появиться одна и та же строка дважды.
   const rest = liveSlots.slice(1, 4);
-  // Ближайшее время по каждому квесту — показываем прямо на карточке каталога,
-  // чтобы срочность была в точке выбора, а не только в hero
   const teasers = Object.fromEntries(
     liveSlots.map((slot) => [
       slot.questSlug,
@@ -102,17 +123,24 @@ export default async function HomePage() {
               Занятость сейчас — по подтверждённым броням
             </p>
             <ul className="grid gap-3 sm:grid-cols-3 lg:flex-1 lg:justify-end">
-              {/* Слоты кликабельны: увидел свободное время — сразу в форму,
-                  без поиска квеста заново */}
               {rest.map((slot) => (
                 <li key={`${slot.questSlug}-${slot.dateISO}-${slot.time}`}>
                   <Link
                     href={`/booking?quest=${slot.questSlug}`}
-                    data-cursor="[ ЗАНЯТЬ ]"
+                    data-cursor="[ ВЫБРАТЬ СЛОТ ]"
                     className="flex min-h-[52px] items-center justify-between gap-4 border border-bone/10 bg-ink/50 px-4 py-3 transition hover:border-crimson/50 lg:justify-start"
                   >
-                    <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-bone-dim">
-                      {formatHumanDate(slot.dateISO)}
+                    <span className="flex min-w-0 flex-col">
+                      {/* Название сценария прямо в строке слота. Раньше здесь были
+                          только дата, время и «15 мест», и три такие строки подряд
+                          выглядели копипастом одного слота. Имя квеста делает каждую
+                          строку самостоятельной и сразу отвечает «это про что». */}
+                      <span className="truncate font-display text-sm uppercase tracking-[0.06em] text-bone">
+                        {slot.questTitle}
+                      </span>
+                      <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-bone-dim">
+                        {formatHumanDate(slot.dateISO)}
+                      </span>
                     </span>
                     <span className="font-display text-base text-bone">{slot.time}</span>
                     <span className="font-mono text-[10px] text-crimson">{slot.seatsLeft} мест</span>
@@ -138,10 +166,10 @@ export default async function HomePage() {
           </p>
           <Link
             href="/booking"
-            data-cursor="[ СОБРАТЬ КОМАНДУ ]"
+            data-cursor="[ ДЛЯ КОМПАНИИ ]"
             className="btn-ghost inline-flex min-h-[44px] items-center px-5 py-2.5 font-display text-xs uppercase tracking-[0.14em]"
           >
-            Собрать команду
+            Забронировать для компании
           </Link>
         </div>
       </section>
@@ -156,7 +184,7 @@ export default async function HomePage() {
         quote="Одна из этих дверей не заперта. Мы не скажем, какая."
         note="Шесть сценариев в двух филиалах Алматы. Четыре уровня страха — от «просто атмосферно» до полного контакта."
         ctaHref="/booking"
-        ctaLabel="Занять время"
+        ctaLabel="Посмотреть свободное время"
       />
 
       <Characters />
@@ -171,7 +199,7 @@ export default async function HomePage() {
         quote="В отражении коридор длиннее, чем на самом деле."
         note="Актёры выходят из тех мест, где их не должно быть. Иногда — из-за вашей спины."
         ctaHref="/booking"
-        ctaLabel="Забронировать ночь"
+        ctaLabel="Забронировать игру"
         height="short"
       />
 

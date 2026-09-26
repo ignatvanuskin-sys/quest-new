@@ -24,6 +24,21 @@ export interface OutboundMessage {
   text: string;
   /** Нужно ли отключить превью ссылок в канале */
   disablePreview?: boolean;
+  /**
+   * Разобранные поля заявки — для автоматизации, которая принимает вебхук.
+   * Текст удобен человеку, а эти поля удобны боту: он может сразу создать
+   * карточку клиента, не разбирая свободный текст по regex.
+   */
+  booking?: {
+    id: string;
+    quest: string;
+    date: string;
+    time: string;
+    players: number;
+    name: string;
+    phone: string;
+    messenger: string;
+  };
 }
 
 export interface SendResult {
@@ -120,6 +135,17 @@ export class TelegramChannel implements NotificationChannel {
  *
  * Точка подключения любой внешней системы: Slack, чат отдела, CRM,
  * no-code автоматизация. Формат тела — { title, text, booking }.
+ *
+ * ОТДЕЛЬНО ПРО WHATSAPP. Отправлять сообщения в WhatsApp с сервера можно
+ * только через официальный Cloud API Meta, и для этого у бизнеса должен быть
+ * одобренный WABA-шаблон. Без одобрения Meta не примет сообщение, и любая
+ * имитация «написали вам в WhatsApp» была бы враньём в интерфейсе.
+ *
+ * Поэтому WhatsApp-канал здесь добровольный: если в адресе вебхука стоит
+ * `wa.me` (или задан WHATSAPP_LINK), наряду с POST уходит ссылка
+ * `wa.me/<номер>?text=…` — и большинство сервисов на базе n8n/Make/бизнес-ботов
+ * умеют разворачивать её в реальное сообщение через одобренный шаблон.
+ * Без такой связки работает только Telegram: он честно работает «из коробки».
  */
 export class WebhookChannel implements NotificationChannel {
   readonly id = "webhook";
@@ -133,9 +159,18 @@ export class WebhookChannel implements NotificationChannel {
   async send(message: OutboundMessage): Promise<SendResult> {
     if (!this.url) return { channel: this.id, delivered: false, reason: "webhook_not_configured" };
 
+    /* Тело уведомления. Плоский JSON: большинство вебхуков (Make, n8n,
+       Zapier, Slack-совместимые) принимают именно плоские поля, и вложенный
+       объект booking там теряется без ручной разборки. */
     const result = await postJson(
       this.url,
-      { title: message.title, text: message.text },
+      {
+        title: message.title,
+        text: message.text,
+        // Отдельные поля — чтобы автоматизация могла разобрать заявку,
+        // не разбирая текст: номер, квест, дата, время, телефон.
+        ...(message.booking ?? {}),
+      },
       this.secret ? { "X-Notify-Secret": this.secret } : {},
     );
 
@@ -303,10 +338,35 @@ async function deliver(message: OutboundMessage, event: BookingRecord["id"] | nu
   return results;
 }
 
+/**
+ * Разобранные поля заявки для автоматизации.
+ *
+ * Дублируют текст сообщения, но существуют ради другой аудитории: текст
+ * читает человек в Telegram, поля — бот, принимающий вебхук. Без них
+ * автоматизация разбирала бы свободный текст регулярками, и любая правка
+ * формулировки ломала бы интеграцию молча.
+ */
+function bookingFields(record: BookingRecord): NonNullable<OutboundMessage["booking"]> {
+  return {
+    id: record.id,
+    quest: getQuest(record.questSlug)?.title ?? record.questSlug,
+    date: record.dateISO,
+    time: record.time,
+    players: record.players,
+    name: record.name,
+    phone: record.phone,
+    messenger: messengerLabel(record.messenger),
+  };
+}
+
 /** Новая бронь: сообщение администратору */
 export async function notifyNewBooking(record: BookingRecord): Promise<SendResult[]> {
   return deliver(
-    { title: `НОВАЯ БРОНЬ ${record.id}`, text: bookingToMessage(record) },
+    {
+      title: `НОВАЯ БРОНЬ ${record.id}`,
+      text: bookingToMessage(record),
+      booking: bookingFields(record),
+    },
     record.id,
   );
 }
@@ -327,6 +387,7 @@ export async function notifyStatusChanged(
         `Клиент: ${record.name}`,
         `Телефон: ${prettyPhone(record.phone)}`,
       ].join("\n"),
+      booking: bookingFields(record),
     },
     record.id,
   );
@@ -348,6 +409,7 @@ export async function sendReminder(record: BookingRecord, kind: ReminderKind): P
         `Телефон: ${prettyPhone(record.phone)}`,
         `Оплата: ${paymentLabel(record.payment?.status)}`,
       ].join("\n"),
+      booking: bookingFields(record),
     },
     record.id,
   );

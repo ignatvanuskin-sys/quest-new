@@ -69,7 +69,7 @@ export function TrustBar() {
           href={BUSINESS.instagram}
           target="_blank"
           rel="noopener noreferrer nofollow"
-          className="inline-flex min-h-[40px] items-center font-mono text-[10px] uppercase tracking-[0.18em] text-bone-dim transition hover:text-bone"
+          className="inline-flex min-h-[44px] items-center font-mono text-[10px] uppercase tracking-[0.18em] text-bone-dim transition hover:text-bone"
         >
           Фото команд в {BUSINESS.instagramHandle}
         </a>

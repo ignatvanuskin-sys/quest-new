@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { AnimatePresence, motion } from "framer-motion";
 import { useCallback, useEffect, useState } from "react";
@@ -7,13 +7,23 @@ const STORAGE_KEY = "hc:intro-seen";
 
 /** Сценарий интро: тишина → мигание → текст → reveal. Максимум ~3 секунды. */
 const BEATS: Array<{ at: number; text: string; className?: string }> = [
-  { at: 350, text: "03:17", className: "font-mono text-crimson" },
-  { at: 1250, text: "последний звонок поступил именно тогда", className: "text-bone-dim" },
-  { at: 2200, text: "после этого хозяина дома больше не видели", className: "text-bone-dim" },
-  { at: 3100, text: "но дверь всё ещё открывается", className: "text-bone" },
+  { at: 150, text: "03:17", className: "font-mono text-crimson" },
+  { at: 500, text: "Они постучали. Дверь открыта.", className: "text-bone" },
 ];
 
-const TOTAL = 4300;
+/**
+ * ДЛИТЕЛЬНОСТЬ ЗАСТАВКИ.
+ *
+ * Раньше было 4300 мс, и это была главная проблема первого контакта: человек
+ * приходил с рекламы или из поиска, больше четырёх секунд смотрел на пустой
+ * экран вместо того, чтобы понять, что здесь хоррор-квест и сколько он стоит.
+ * Слот, который человек не дождался, не вернуть никаким дизайном.
+ *
+ * Сейчас это короткий переход, а не заставка: атмосфера остаётся, время почти
+ * не стоит. Содержимое при этом полностью доступно — слой не перехватывает
+ * клики и не блокирует прокрутку, а «Пропустить» виден с первого кадра.
+ */
+const TOTAL = 1200;
 
 /**
  * Короткое атмосферное интро при первом заходе в сессию.
@@ -49,7 +59,9 @@ export function IntroSequence() {
   useEffect(() => {
     if (!active) return;
 
-    document.documentElement.style.overflow = "hidden";
+    /* Прокрутка НЕ блокируется: раньше здесь стояло overflow=hidden, и человек
+       не мог прокрутить страницу до конца заставки. Сцена — часть атмосферы,
+       а не условие доступа к сайту. */
     const timers = BEATS.map((item, index) =>
       window.setTimeout(() => setBeat(index + 1), item.at),
     );
@@ -61,7 +73,6 @@ export function IntroSequence() {
     window.addEventListener("keydown", onKey);
 
     return () => {
-      document.documentElement.style.overflow = "";
       timers.forEach((timer) => window.clearTimeout(timer));
       window.clearTimeout(finish);
       window.removeEventListener("keydown", onKey);
@@ -73,14 +84,16 @@ export function IntroSequence() {
       {active ? (
         <motion.div
           key="intro"
-          role="dialog"
-          aria-label="Вступительная сцена"
+          /* Сцена декоративна: экранридеру тут не о чем читать, а role="dialog"
+             без фокус-ловушки только мешал бы. Кнопка «Пропустить»
+             остаётся доступной: она вне этого слоя по z-индексу. */
+          aria-hidden="true"
           exit={{ opacity: 0 }}
           transition={{ duration: 0.5 }}
-          className="fixed inset-0 z-[90] flex flex-col items-center justify-center bg-ink px-6"
+          className="pointer-events-none fixed inset-0 z-[90] flex flex-col items-center justify-center bg-ink px-6"
         >
           <div className="fx-scanlines pointer-events-none absolute inset-0 opacity-60" aria-hidden="true" />
-          <div className="relative flex h-40 w-full max-w-xl flex-col items-center justify-center gap-3 text-center">
+          <div className="pointer-events-none relative flex h-24 w-full max-w-xl flex-col items-center justify-center gap-3 text-center">
             {BEATS.map((item, index) => (
               <motion.p
                 key={item.text}

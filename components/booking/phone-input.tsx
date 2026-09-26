@@ -103,6 +103,12 @@ export function PhoneInput({
         enterKeyHint="next"
         maxLength={18}
         value={display}
+        /* Обязательность телефона объявлена нативно: подпись помечена
+           звёздочкой, и без этого атрибута поле для скринридера выглядит
+           необязательным. */
+        required
+        /* Якорь для автоматической фокусировки после ошибки отправки */
+        data-error-field="phone"
         aria-invalid={invalid}
         aria-describedby={describedBy}
         placeholder="+7 777 000 00 00"

@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { isAdmin } from "@/lib/auth";
 import { runReminderSweep } from "@/lib/services/reminders";
 
 export const dynamic = "force-dynamic";
@@ -12,10 +11,11 @@ export const dynamic = "force-dynamic";
  * мешают масштабированию и перезапускам. Проход инициируется извне
  * (cron хостинга или системный планировщик) — см. PRODUCTION.md.
  *
- * Доступ:
- * • заголовок Authorization: Bearer CRON_SECRET (основной способ);
- * • либо сессия администратора — чтобы владелец мог запустить проход
- *   кнопкой из панели, не зная секрета.
+ * Доступ — только заголовком `Authorization: Bearer CRON_SECRET`.
+ * Раньше здесь же принималась сессия администратора, чтобы владелец мог
+ * запустить проход кнопкой из панели: панели больше нет, значит и этого
+ * пути нет. Второй способ авторизации здесь означал бы, что любой,
+ * кто может войти в удалённую панель, запускает рассылку всем клиентам.
  *
  * Без CRON_SECRET эндпоинт закрыт для внешних вызовов: иначе любой желающий
  * мог бы рассылать напоминания сколько угодно раз.
@@ -25,10 +25,9 @@ async function handle(request: Request) {
   const header = request.headers.get("authorization") ?? "";
   const provided = header.startsWith("Bearer ") ? header.slice(7) : "";
 
-  const authorizedBySecret = Boolean(secret) && provided === secret;
-  const authorizedByAdmin = await isAdmin();
+  const authorized = Boolean(secret) && provided === secret;
 
-  if (!authorizedBySecret && !authorizedByAdmin) {
+  if (!authorized) {
     return NextResponse.json({ ok: false, message: "Требуется авторизация" }, { status: 401 });
   }
 
